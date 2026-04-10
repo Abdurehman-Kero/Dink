@@ -1,7 +1,5 @@
-// API Client for DEMS Frontend
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
-// Helper function for API calls
 const apiClient = async (endpoint, options = {}) => {
   const token = localStorage.getItem('authToken');
   
@@ -34,7 +32,7 @@ const apiClient = async (endpoint, options = {}) => {
   }
 };
 
-// Auth APIs
+// Auth APIs (No OTP)
 export const authAPI = {
   register: (userData) => apiClient('/auth/register', {
     method: 'POST',
@@ -44,16 +42,6 @@ export const authAPI = {
   login: (credentials) => apiClient('/auth/login', {
     method: 'POST',
     body: JSON.stringify(credentials),
-  }),
-  
-  sendOTP: (email) => apiClient('/auth/send-otp', {
-    method: 'POST',
-    body: JSON.stringify({ email }),
-  }),
-  
-  verifyOTP: (email, otp, sentOtp) => apiClient('/auth/verify-otp', {
-    method: 'POST',
-    body: JSON.stringify({ email, otp, sentOtp }),
   }),
 };
 

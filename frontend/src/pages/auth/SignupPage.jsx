@@ -1,108 +1,116 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Eye, EyeOff, Phone, Mail, User, Lock, CheckCircle } from 'lucide-react';
-
-// Temporary API mock - replace with actual API
-const api = {
-  register: async (data) => {
-    console.log('Registering user:', data);
-    return { success: true };
-  },
-  verifyOTPAndLogin: async (email, otp) => {
-    console.log('Verifying OTP:', email, otp);
-    return { 
-      user: { email, first_name: 'User', role: 'attendee' },
-      token: 'mock-token-123'
-    };
-  }
-};
+import { Eye, EyeOff, Mail, User, Lock, CheckCircle, ArrowRight, Coffee } from 'lucide-react';
+import { authAPI } from '../../api/client';
 
 export function SignupPage() {
+  const navigate = useNavigate();
   const [formData, setFormData] = useState({
-    first_name: '',
-    last_name: '',
+    full_name: '',
     email: '',
-    phone_number: '',
+    phone: '',
     password: '',
     confirm_password: '',
   });
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [otpSent, setOtpSent] = useState(false);
-  const [otp, setOtp] = useState('');
-  const [otpError, setOtpError] = useState('');
-
-  const navigate = useNavigate();
-
-  const handleSendOTP = async () => {
-    if (!formData.first_name || !formData.last_name || !formData.email || !formData.phone_number) {
-      alert('Please fill in all required fields');
-      return false;
-    }
-    if (formData.password !== formData.confirm_password) {
-      alert('Passwords do not match');
-      return false;
-    }
-    if (formData.password.length < 8) {
-      alert('Password must be at least 8 characters');
-      return false;
-    }
-
-    setLoading(true);
-    try {
-      await api.register({
-        first_name: formData.first_name,
-        last_name: formData.last_name,
-        email: formData.email,
-        password: formData.password,
-        phone_number: formData.phone_number,
-      });
-      setOtpSent(true);
-      setOtpError('');
-      alert(`OTP sent to ${formData.email}`);
-      return true;
-    } catch (error) {
-      alert(error.message || 'Failed to send OTP');
-      return false;
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-
-    if (!otpSent) {
-      await handleSendOTP();
-      return;
-    }
-
-    if (otp.length !== 6) {
-      setOtpError('Please enter the 6-digit OTP code');
-      return;
-    }
-
-    setLoading(true);
-    try {
-      const response = await api.verifyOTPAndLogin(formData.email, otp);
-      localStorage.setItem('authToken', response.token);
-      localStorage.setItem('user', JSON.stringify(response.user));
-      alert('Account created successfully!');
-      navigate('/discover');
-    } catch (error) {
-      setOtpError('Invalid OTP code. Please try again.');
-      alert(error.message || 'Failed to verify OTP');
-    } finally {
-      setLoading(false);
-    }
-  };
+  const [registered, setRegistered] = useState(false);
+  const [error, setError] = useState('');
 
   const handleChange = (e) => {
     setFormData(prev => ({
       ...prev,
-      [e.target.name]: e.target.value,
+      [e.target.name]: e.target.value
     }));
+    setError('');
   };
+
+  const validateForm = () => {
+    if (!formData.full_name.trim()) {
+      setError('Full name is required');
+      return false;
+    }
+    if (!formData.email.trim()) {
+      setError('Email address is required');
+      return false;
+    }
+    if (!formData.email.includes('@')) {
+      setError('Please enter a valid email address');
+      return false;
+    }
+    if (!formData.password) {
+      setError('Password is required');
+      return false;
+    }
+    if (formData.password.length < 6) {
+      setError('Password must be at least 6 characters');
+      return false;
+    }
+    if (formData.password !== formData.confirm_password) {
+      setError('Passwords do not match');
+      return false;
+    }
+    return true;
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    
+    if (!validateForm()) {
+      return;
+    }
+
+    setLoading(true);
+    setError('');
+
+    try {
+      const response = await authAPI.register({
+        full_name: formData.full_name,
+        email: formData.email,
+        password: formData.password,
+        phone: formData.phone || null
+      });
+      
+      if (response.success) {
+        setRegistered(true);
+        // Redirect to login page after 3 seconds
+        setTimeout(() => {
+          navigate('/login');
+        }, 3000);
+      }
+    } catch (error) {
+      setError(error.message || 'Registration failed. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (registered) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 flex items-center justify-center px-4 py-12">
+        <div className="w-full max-w-md">
+          <div className="bg-white rounded-2xl shadow-xl p-8 text-center">
+            <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-6">
+              <CheckCircle className="size-10 text-green-600" />
+            </div>
+            <h2 className="text-2xl font-bold text-gray-900 mb-2">Account Created Successfully!</h2>
+            <p className="text-gray-600 mb-4">
+              Welcome to DEMS, {formData.full_name.split(' ')[0]}!
+            </p>
+            <p className="text-sm text-gray-500 mb-6">
+              A confirmation email has been sent to <strong>{formData.email}</strong>
+            </p>
+            <p className="text-sm text-green-600 mb-4">
+              Please check your email to verify your account.
+            </p>
+            <div className="animate-pulse text-gray-500 text-sm">
+              Redirecting you to login page...
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 flex items-center justify-center px-4 py-12">
@@ -120,7 +128,7 @@ export function SignupPage() {
             <div className="flex justify-center mb-4">
               <div className="relative group">
                 <div className="w-16 h-16 bg-gradient-to-br from-green-600 via-yellow-500 to-red-600 rounded-2xl flex items-center justify-center shadow-lg group-hover:scale-105 transition-transform">
-                  <span className="text-white font-bold text-2xl">ዲ</span>
+                  <Coffee className="size-8 text-white" />
                 </div>
                 <div className="absolute -bottom-1 -right-1 w-3 h-3 bg-yellow-400 rounded-full" />
               </div>
@@ -131,233 +139,128 @@ export function SignupPage() {
               <div className="flex-1 bg-red-500" />
             </div>
             <h1 className="text-3xl font-bold text-gray-900 mb-2">Create Account</h1>
-            <p className="text-gray-600">Join DEMS to discover amazing events</p>
+            <p className="text-gray-600">Join DEMS to discover amazing events in Ethiopia</p>
           </div>
 
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label htmlFor="first_name" className="block text-sm font-medium text-gray-700 mb-2">
-                  First Name
-                </label>
-                <div className="relative">
-                  <User className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-gray-400" />
-                  <input
-                    type="text"
-                    id="first_name"
-                    name="first_name"
-                    value={formData.first_name}
-                    onChange={handleChange}
-                    required
-                    className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all"
-                    placeholder="John"
-                  />
-                </div>
-              </div>
+          {error && (
+            <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-xl text-red-600 text-sm text-center">
+              {error}
+            </div>
+          )}
 
-              <div>
-                <label htmlFor="last_name" className="block text-sm font-medium text-gray-700 mb-2">
-                  Last Name
-                </label>
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Full Name *
+              </label>
+              <div className="relative">
+                <User className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-gray-400" />
                 <input
                   type="text"
-                  id="last_name"
-                  name="last_name"
-                  value={formData.last_name}
+                  name="full_name"
+                  value={formData.full_name}
                   onChange={handleChange}
                   required
-                  className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all"
-                  placeholder="Doe"
+                  className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all"
+                  placeholder="Abebe Kebede"
                 />
               </div>
             </div>
 
             <div>
-              <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-2">
-                Email Address
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Email Address *
               </label>
               <div className="relative">
                 <Mail className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-gray-400" />
                 <input
                   type="email"
-                  id="email"
                   name="email"
                   value={formData.email}
                   onChange={handleChange}
                   required
-                  disabled={otpSent}
-                  className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all disabled:bg-gray-100 disabled:cursor-not-allowed"
+                  className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all"
                   placeholder="you@example.com"
                 />
               </div>
+              <p className="text-xs text-gray-500 mt-1">We'll send a confirmation email to this address</p>
             </div>
 
             <div>
-              <label htmlFor="phone_number" className="block text-sm font-medium text-gray-700 mb-2">
-                Phone Number
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Phone Number (Optional)
               </label>
-              <div className="relative">
-                <Phone className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-gray-400" />
-                <input
-                  type="tel"
-                  id="phone_number"
-                  name="phone_number"
-                  value={formData.phone_number}
-                  onChange={handleChange}
-                  required
-                  disabled={otpSent}
-                  className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all disabled:bg-gray-100 disabled:cursor-not-allowed"
-                  placeholder="+251 911 234 567"
-                />
-              </div>
-              <p className="text-xs text-gray-500 mt-1">Required for OTP verification</p>
+              <input
+                type="tel"
+                name="phone"
+                value={formData.phone}
+                onChange={handleChange}
+                className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all"
+                placeholder="+251 911 234 567"
+              />
             </div>
 
             <div>
-              <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-2">
-                Password
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Password *
               </label>
               <div className="relative">
                 <Lock className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-gray-400" />
                 <input
                   type={showPassword ? 'text' : 'password'}
-                  id="password"
                   name="password"
                   value={formData.password}
                   onChange={handleChange}
                   required
-                  disabled={otpSent}
-                  className="w-full pl-10 pr-12 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all disabled:bg-gray-100 disabled:cursor-not-allowed"
+                  className="w-full pl-10 pr-12 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all"
                   placeholder="••••••••"
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
                   className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
-                  disabled={otpSent}
                 >
                   {showPassword ? <EyeOff className="size-5" /> : <Eye className="size-5" />}
                 </button>
               </div>
-              <p className="text-xs text-gray-500 mt-1">At least 8 characters</p>
+              <p className="text-xs text-gray-500 mt-1">At least 6 characters</p>
             </div>
 
             <div>
-              <label htmlFor="confirm_password" className="block text-sm font-medium text-gray-700 mb-2">
-                Confirm Password
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Confirm Password *
               </label>
               <div className="relative">
                 <CheckCircle className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-gray-400" />
                 <input
                   type={showPassword ? 'text' : 'password'}
-                  id="confirm_password"
                   name="confirm_password"
                   value={formData.confirm_password}
                   onChange={handleChange}
                   required
-                  disabled={otpSent}
-                  className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all disabled:bg-gray-100 disabled:cursor-not-allowed"
+                  className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all"
                   placeholder="••••••••"
                 />
               </div>
             </div>
 
-            {!otpSent && (
-              <button
-                type="button"
-                onClick={handleSendOTP}
-                disabled={loading}
-                className="w-full px-4 py-3 bg-gradient-to-r from-green-600 to-green-700 text-white rounded-xl font-semibold hover:from-green-700 hover:to-green-800 transition-all shadow-md disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 mt-6"
-              >
-                {loading ? (
-                  <>
-                    <div className="animate-spin size-5 border-2 border-white border-t-transparent rounded-full" />
-                    Sending OTP...
-                  </>
-                ) : (
-                  <>
-                    <Phone className="size-5" />
-                    Send OTP Code
-                  </>
-                )}
-              </button>
-            )}
-
-            {otpSent && (
-              <>
-                <div className="bg-green-50 border border-green-200 rounded-xl p-4">
-                  <p className="text-sm text-green-800 flex items-center gap-2">
-                    <CheckCircle className="size-4" />
-                    OTP sent successfully to {formData.phone_number}
-                  </p>
-                </div>
-
-                <div>
-                  <label htmlFor="otp" className="block text-sm font-medium text-gray-700 mb-2">
-                    Enter 6-Digit OTP
-                  </label>
-                  <input
-                    type="text"
-                    id="otp"
-                    name="otp"
-                    value={otp}
-                    onChange={(e) => {
-                      setOtp(e.target.value.replace(/\D/g, '').slice(0, 6));
-                      setOtpError('');
-                    }}
-                    required
-                    maxLength={6}
-                    autoFocus
-                    className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent text-center text-2xl tracking-widest font-semibold transition-all"
-                    placeholder="000000"
-                  />
-                  {otpError && (
-                    <p className="text-sm text-red-600 mt-2 flex items-center gap-1">
-                      <span>⚠</span> {otpError}
-                    </p>
-                  )}
-                  <div className="mt-3 flex items-center justify-between">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setOtpSent(false);
-                        setOtp('');
-                        setOtpError('');
-                      }}
-                      className="text-sm text-gray-600 hover:text-gray-900 hover:underline transition-colors"
-                    >
-                      Change phone number
-                    </button>
-                    <button
-                      type="button"
-                      onClick={handleSendOTP}
-                      disabled={loading}
-                      className="text-sm text-green-600 font-semibold hover:text-green-700 hover:underline disabled:opacity-50 transition-colors"
-                    >
-                      Resend OTP
-                    </button>
-                  </div>
-                </div>
-
-                <button
-                  type="submit"
-                  disabled={loading || otp.length !== 6}
-                  className="w-full px-4 py-3 bg-gradient-to-r from-green-600 to-green-700 text-white rounded-xl font-semibold hover:from-green-700 hover:to-green-800 transition-all shadow-md disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 mt-4"
-                >
-                  {loading ? (
-                    <>
-                      <div className="animate-spin size-5 border-2 border-white border-t-transparent rounded-full" />
-                      Creating account...
-                    </>
-                  ) : (
-                    <>
-                      <CheckCircle className="size-5" />
-                      Verify & Create Account
-                    </>
-                  )}
-                </button>
-              </>
-            )}
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full px-4 py-3 bg-gradient-to-r from-green-600 to-green-700 text-white rounded-xl font-semibold hover:from-green-700 hover:to-green-800 transition-all shadow-md disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 mt-6"
+            >
+              {loading ? (
+                <>
+                  <div className="animate-spin size-5 border-2 border-white border-t-transparent rounded-full" />
+                  Creating Account...
+                </>
+              ) : (
+                <>
+                  Create Account
+                  <ArrowRight className="size-5" />
+                </>
+              )}
+            </button>
           </form>
 
           <div className="mt-6 text-center">
@@ -368,18 +271,27 @@ export function SignupPage() {
               </Link>
             </p>
           </div>
-        </div>
 
-        {/* Ethiopian Pattern Decoration Bottom */}
-        <div className="mt-6 text-center">
-          <div className="inline-flex items-center gap-2 opacity-40">
-            <div className="w-1 h-1 bg-green-500 rounded-full" />
-            <div className="w-2 h-2 bg-yellow-500 rounded-full" />
-            <div className="w-1 h-1 bg-red-500 rounded-full" />
-            <div className="w-8 h-px bg-gray-300" />
-            <div className="w-1 h-1 bg-green-500 rounded-full" />
-            <div className="w-2 h-2 bg-yellow-500 rounded-full" />
-            <div className="w-1 h-1 bg-red-500 rounded-full" />
+          <div className="mt-6 pt-6 border-t border-gray-200 text-center">
+            <p className="text-sm text-gray-600">
+              Are you an organizer?{' '}
+              <Link to="/organizer/signup" className="text-gray-900 font-semibold hover:text-green-600 hover:underline">
+                Create organizer account
+              </Link>
+            </p>
+          </div>
+
+          {/* Ethiopian Pattern Decoration */}
+          <div className="mt-6 text-center">
+            <div className="inline-flex items-center gap-2 opacity-40">
+              <div className="w-1 h-1 bg-green-500 rounded-full" />
+              <div className="w-2 h-2 bg-yellow-500 rounded-full" />
+              <div className="w-1 h-1 bg-red-500 rounded-full" />
+              <div className="w-8 h-px bg-gray-300" />
+              <div className="w-1 h-1 bg-green-500 rounded-full" />
+              <div className="w-2 h-2 bg-yellow-500 rounded-full" />
+              <div className="w-1 h-1 bg-red-500 rounded-full" />
+            </div>
           </div>
         </div>
       </div>

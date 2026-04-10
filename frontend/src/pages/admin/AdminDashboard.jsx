@@ -1,105 +1,95 @@
 import { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
-import { Users, Calendar, Clock, DollarSign, CheckCircle, XCircle, Eye, Shield, Coffee, TrendingUp } from 'lucide-react';
+import { Link, useNavigate } from 'react-router-dom';
+import { 
+  Users, Calendar, DollarSign, TrendingUp, CheckCircle, 
+  XCircle, Clock, Shield, UserCheck, Ticket, Award,
+  Eye, RefreshCw, Settings, Bell, BarChart3, ChevronRight,
+  PlusCircle, Trash2, Edit
+} from 'lucide-react';
+import { useAuth } from '../../contexts/AuthContext';
 
-// Mock data
-const mockStats = {
-  total_users: 15420,
-  total_organizers: 234,
-  total_attendees: 14890,
-  total_security: 296,
-  live_events: 45,
-  pending_approvals: 12,
-  total_revenue: 8450000,
-  total_tickets_sold: 28750
-};
-
-const mockPendingOrganizers = [
-  {
-    id: '1',
-    organization_name: 'Ethiopian Coffee Association',
-    organization_type: 'non_profit',
-    full_name: 'Abebe Kebede',
-    work_email: 'abebe@ethiopiancoffee.org',
-    phone_number: '+251-911-234-567',
-    website_url: 'www.ethiopiancoffee.org',
-    verification_status: 'pending',
-    created_at: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString()
-  },
-  {
-    id: '2',
-    organization_name: 'Hawassa Arts Festival',
-    organization_type: 'corporate',
-    full_name: 'Helen Mekonnen',
-    work_email: 'helen@hawassaarts.com',
-    phone_number: '+251-912-345-678',
-    website_url: 'www.hawassaarts.com',
-    verification_status: 'pending',
-    created_at: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString()
-  }
-];
-
-const mockRecentEvents = [
-  { id: '1', title: 'ታላቁ የኢትዮጵያ ቡና ፌስቲቫል', organizer_name: 'Ethiopian Coffee Association', status: 'published', created_at: new Date().toISOString() },
-  { id: '2', title: 'ሐዋሳ ሙዚቃ ፌስቲቫል', organizer_name: 'Hawassa Arts Festival', status: 'pending', created_at: new Date().toISOString() }
-];
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
 export function AdminDashboard() {
-  const [stats, setStats] = useState(null);
-  const [pendingOrganizers, setPendingOrganizers] = useState([]);
+  const { user, logout } = useAuth();
+  const navigate = useNavigate();
+  const [stats, setStats] = useState({
+    total_users: 0,
+    total_organizers: 0,
+    total_attendees: 0,
+    total_events: 0,
+    live_events: 0,
+    pending_approvals: 0,
+    total_revenue: 0,
+    total_tickets_sold: 0
+  });
   const [recentEvents, setRecentEvents] = useState([]);
+  const [pendingOrganizers, setPendingOrganizers] = useState([]);
   const [loading, setLoading] = useState(true);
 
+  // Check if user is admin, if not redirect
   useEffect(() => {
-    loadDashboardData();
+    if (!loading && user && user.role_id !== 1) {
+      navigate('/discover');
+    }
+  }, [user, loading, navigate]);
+
+  useEffect(() => {
+    fetchDashboardData();
   }, []);
 
-  const loadDashboardData = async () => {
+  const fetchDashboardData = async () => {
+    setLoading(true);
     try {
-      // Simulate API call
-      setTimeout(() => {
-        setStats(mockStats);
-        setPendingOrganizers(mockPendingOrganizers);
-        setRecentEvents(mockRecentEvents);
-        setLoading(false);
-      }, 800);
+      // Mock data for now - replace with actual API calls
+      setStats({
+        total_users: 1250,
+        total_organizers: 45,
+        total_attendees: 1200,
+        total_events: 28,
+        live_events: 12,
+        pending_approvals: 5,
+        total_revenue: 845000,
+        total_tickets_sold: 3450
+      });
+      
+      setPendingOrganizers([
+        { id: '1', organization_name: 'Ethiopian Coffee Association', full_name: 'Abebe Kebede', email: 'abebe@coffee.com', created_at: '2024-03-10' },
+        { id: '2', organization_name: 'Hawassa Arts Festival', full_name: 'Helen Mekonnen', email: 'helen@hawassaarts.com', created_at: '2024-03-12' }
+      ]);
+      
+      setRecentEvents([
+        { id: '1', title: 'Ethiopian Coffee Festival', organizer: 'Coffee Association', status: 'published', tickets_sold: 1250 },
+        { id: '2', title: 'Hawassa Music Festival', organizer: 'Hawassa Arts', status: 'published', tickets_sold: 890 }
+      ]);
     } catch (error) {
-      console.error('Failed to load dashboard data:', error);
+      console.error('Error fetching dashboard:', error);
+    } finally {
       setLoading(false);
     }
   };
 
-  const handleApprove = async (organizerId) => {
-    setPendingOrganizers(prev => prev.filter(org => org.id !== organizerId));
-    setStats(prev => ({ ...prev, pending_approvals: prev.pending_approvals - 1 }));
+  const handleApprove = (id) => {
+    setPendingOrganizers(prev => prev.filter(org => org.id !== id));
     alert('Organizer approved successfully!');
   };
 
-  const handleReject = async (organizerId) => {
-    setPendingOrganizers(prev => prev.filter(org => org.id !== organizerId));
-    setStats(prev => ({ ...prev, pending_approvals: prev.pending_approvals - 1 }));
+  const handleReject = (id) => {
+    setPendingOrganizers(prev => prev.filter(org => org.id !== id));
     alert('Organizer rejected.');
   };
 
-  const getDaysAgo = (dateString) => {
-    const date = new Date(dateString);
-    const now = new Date();
-    const diffTime = Math.abs(now.getTime() - date.getTime());
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-    return diffDays === 1 ? '1 day ago' : `${diffDays} days ago`;
+  const handleLogout = () => {
+    logout();
+    navigate('/login');
   };
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-b from-gray-50 to-white">
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
         <div className="text-center">
-          <div className="relative">
-            <div className="animate-spin size-16 border-4 border-green-200 border-t-green-600 rounded-full mb-4" />
-            <div className="absolute inset-0 flex items-center justify-center">
-              <Coffee className="size-6 text-green-600 animate-pulse" />
-            </div>
-          </div>
-          <p className="text-gray-500 mt-4">Loading dashboard...</p>
+          <div className="animate-spin size-12 border-4 border-green-200 border-t-green-600 rounded-full mb-4" />
+          <p className="text-gray-500">Loading dashboard...</p>
         </div>
       </div>
     );
@@ -114,114 +104,98 @@ export function AdminDashboard() {
         <div className="flex-1 bg-red-600" />
       </div>
 
-      {/* Header */}
-      <div className="bg-white border-b border-gray-200">
-        <div className="max-w-7xl mx-auto px-6 py-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <div className="flex items-center gap-3 mb-2">
-                <div className="w-12 h-12 bg-gradient-to-br from-green-600 via-yellow-500 to-red-600 rounded-2xl flex items-center justify-center shadow-md">
-                  <Shield className="size-6 text-white" />
-                </div>
-                <h1 className="text-3xl font-bold text-gray-900">Admin Dashboard</h1>
-              </div>
-              <p className="text-gray-600 ml-16">Manage your DEMS platform</p>
-            </div>
-            <div className="text-2xl font-bold bg-gradient-to-r from-green-600 via-yellow-500 to-red-600 bg-clip-text text-transparent">
-              DEMS Admin
-            </div>
+      <div className="max-w-7xl mx-auto px-4 py-8">
+        {/* Header */}
+        <div className="flex justify-between items-center mb-8">
+          <div>
+            <h1 className="text-3xl font-bold text-gray-900">Admin Dashboard</h1>
+            <p className="text-gray-600">Welcome back, {user?.full_name?.split(' ')[0] || 'Admin'}!</p>
+            {user?.email === 'nexussphere0974@gmail.com' && (
+              <span className="inline-flex items-center gap-1 mt-1 px-2 py-0.5 bg-yellow-100 text-yellow-700 text-xs rounded-full">
+                <Shield className="size-3" /> Super Admin
+              </span>
+            )}
+          </div>
+          <div className="flex gap-3">
+            <button onClick={fetchDashboardData} className="px-4 py-2 bg-white border rounded-xl flex items-center gap-2">
+              <RefreshCw className="size-4" /> Refresh
+            </button>
+            <button onClick={handleLogout} className="px-4 py-2 bg-red-50 text-red-600 rounded-xl flex items-center gap-2">
+              Logout
+            </button>
           </div>
         </div>
-      </div>
 
-      <div className="max-w-7xl mx-auto px-6 py-8">
         {/* Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-          <div className="bg-white rounded-2xl p-6 shadow-sm border-l-4 border-green-500">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-gray-600 mb-1">Total Users</p>
-                <p className="text-3xl font-bold text-gray-900">{stats?.total_users.toLocaleString()}</p>
-              </div>
-              <Users className="size-12 text-green-400" />
-            </div>
+        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-3 mb-8">
+          <div className="bg-white rounded-xl p-3 text-center border-l-4 border-green-500">
+            <Users className="size-5 text-green-500 mx-auto mb-1" />
+            <p className="text-xs text-gray-500">Users</p>
+            <p className="text-xl font-bold">{stats.total_users}</p>
           </div>
-
-          <div className="bg-white rounded-2xl p-6 shadow-sm border-l-4 border-yellow-500">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-gray-600 mb-1">Live Events</p>
-                <p className="text-3xl font-bold text-gray-900">{stats?.live_events}</p>
-              </div>
-              <Calendar className="size-12 text-yellow-400" />
-            </div>
+          <div className="bg-white rounded-xl p-3 text-center border-l-4 border-blue-500">
+            <Calendar className="size-5 text-blue-500 mx-auto mb-1" />
+            <p className="text-xs text-gray-500">Events</p>
+            <p className="text-xl font-bold">{stats.total_events}</p>
           </div>
-
-          <div className="bg-white rounded-2xl p-6 shadow-sm border-l-4 border-red-500">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-gray-600 mb-1">Pending Approvals</p>
-                <p className="text-3xl font-bold text-gray-900">{stats?.pending_approvals}</p>
-              </div>
-              <Clock className="size-12 text-red-400" />
-            </div>
+          <div className="bg-white rounded-xl p-3 text-center border-l-4 border-yellow-500">
+            <Ticket className="size-5 text-yellow-500 mx-auto mb-1" />
+            <p className="text-xs text-gray-500">Tickets</p>
+            <p className="text-xl font-bold">{stats.total_tickets_sold}</p>
           </div>
-
-          <div className="bg-white rounded-2xl p-6 shadow-sm border-l-4 border-purple-500">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-gray-600 mb-1">Total Revenue</p>
-                <p className="text-3xl font-bold text-gray-900">{stats?.total_revenue.toLocaleString()} ETB</p>
-              </div>
-              <DollarSign className="size-12 text-purple-400" />
-            </div>
+          <div className="bg-white rounded-xl p-3 text-center border-l-4 border-purple-500">
+            <DollarSign className="size-5 text-purple-500 mx-auto mb-1" />
+            <p className="text-xs text-gray-500">Revenue</p>
+            <p className="text-xl font-bold">ETB {stats.total_revenue.toLocaleString()}</p>
+          </div>
+          <div className="bg-white rounded-xl p-3 text-center border-l-4 border-red-500">
+            <TrendingUp className="size-5 text-red-500 mx-auto mb-1" />
+            <p className="text-xs text-gray-500">Live</p>
+            <p className="text-xl font-bold">{stats.live_events}</p>
+          </div>
+          <div className="bg-white rounded-xl p-3 text-center border-l-4 border-orange-500">
+            <Clock className="size-5 text-orange-500 mx-auto mb-1" />
+            <p className="text-xs text-gray-500">Pending</p>
+            <p className="text-xl font-bold">{stats.pending_approvals}</p>
+          </div>
+          <div className="bg-white rounded-xl p-3 text-center border-l-4 border-teal-500">
+            <UserCheck className="size-5 text-teal-500 mx-auto mb-1" />
+            <p className="text-xs text-gray-500">Organizers</p>
+            <p className="text-xl font-bold">{stats.total_organizers}</p>
+          </div>
+          <div className="bg-white rounded-xl p-3 text-center border-l-4 border-indigo-500">
+            <Award className="size-5 text-indigo-500 mx-auto mb-1" />
+            <p className="text-xs text-gray-500">Attendees</p>
+            <p className="text-xl font-bold">{stats.total_attendees}</p>
           </div>
         </div>
 
-        {/* Pending Organizer Approvals */}
+        {/* Pending Approvals Section */}
         <div className="bg-white rounded-2xl shadow-sm mb-8">
-          <div className="px-6 py-4 border-b border-gray-200">
+          <div className="px-6 py-4 border-b">
             <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2">
-              <Clock className="size-5 text-yellow-500" />
-              Pending Organizer Approvals
+              <Clock className="size-5 text-orange-500" /> Pending Organizer Approvals
             </h2>
           </div>
           <div className="p-6">
             {pendingOrganizers.length === 0 ? (
-              <p className="text-gray-500 text-center py-8">✅ No pending approvals</p>
+              <p className="text-gray-500 text-center py-4">No pending approvals</p>
             ) : (
               <div className="space-y-4">
-                {pendingOrganizers.map((org) => (
-                  <div key={org.id} className="border border-gray-200 rounded-xl p-4 hover:border-green-300 transition-colors">
-                    <div className="flex flex-col md:flex-row items-start justify-between gap-4">
-                      <div className="flex-1">
-                        <h3 className="font-semibold text-gray-900 mb-2">{org.organization_name}</h3>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-sm text-gray-600">
-                          <div><span className="font-medium">Contact:</span> {org.full_name}</div>
-                          <div><span className="font-medium">Type:</span> {org.organization_type}</div>
-                          <div><span className="font-medium">Email:</span> {org.work_email}</div>
-                          <div><span className="font-medium">Phone:</span> {org.phone_number}</div>
-                          <div className="md:col-span-2">
-                            <span className="font-medium">Submitted:</span> {getDaysAgo(org.created_at)}
-                          </div>
-                        </div>
-                      </div>
-                      <div className="flex gap-2">
-                        <button
-                          onClick={() => handleApprove(org.id)}
-                          className="flex items-center gap-2 px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors text-sm font-medium"
-                        >
-                          <CheckCircle className="size-4" />
-                          Approve
-                        </button>
-                        <button
-                          onClick={() => handleReject(org.id)}
-                          className="flex items-center gap-2 px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors text-sm font-medium"
-                        >
-                          <XCircle className="size-4" />
-                          Reject
-                        </button>
-                      </div>
+                {pendingOrganizers.map(org => (
+                  <div key={org.id} className="border rounded-xl p-4 flex justify-between items-center">
+                    <div>
+                      <h3 className="font-semibold">{org.organization_name}</h3>
+                      <p className="text-sm text-gray-500">{org.full_name} • {org.email}</p>
+                      <p className="text-xs text-gray-400">Submitted: {new Date(org.created_at).toLocaleDateString()}</p>
+                    </div>
+                    <div className="flex gap-2">
+                      <button onClick={() => handleApprove(org.id)} className="px-4 py-2 bg-green-500 text-white rounded-lg text-sm flex items-center gap-1">
+                        <CheckCircle className="size-4" /> Approve
+                      </button>
+                      <button onClick={() => handleReject(org.id)} className="px-4 py-2 bg-red-500 text-white rounded-lg text-sm flex items-center gap-1">
+                        <XCircle className="size-4" /> Reject
+                      </button>
                     </div>
                   </div>
                 ))}
@@ -230,57 +204,48 @@ export function AdminDashboard() {
           </div>
         </div>
 
-        {/* Recent Events */}
-        <div className="bg-white rounded-2xl shadow-sm mb-8">
-          <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
-            <h2 className="text-xl font-bold text-gray-900">Recent Events</h2>
-            <Link to="/admin/events" className="text-sm text-green-600 font-semibold hover:underline">
-              View All →
-            </Link>
-          </div>
-          <div className="divide-y divide-gray-200">
-            {recentEvents.map((event) => (
-              <div key={event.id} className="px-6 py-4 hover:bg-gray-50 transition-colors">
-                <div className="flex items-center justify-between">
-                  <div className="flex-1">
-                    <h3 className="font-semibold text-gray-900">{event.title}</h3>
-                    <p className="text-sm text-gray-600 mt-1">
-                      {event.organizer_name} • 
-                      <span className={`ml-2 inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${
-                        event.status === 'published' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'
-                      }`}>
-                        {event.status}
-                      </span>
-                    </p>
+        {/* Recent Events & Quick Actions */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+          {/* Recent Events */}
+          <div className="bg-white rounded-2xl shadow-sm">
+            <div className="px-6 py-4 border-b">
+              <h2 className="text-xl font-bold">Recent Events</h2>
+            </div>
+            <div className="divide-y">
+              {recentEvents.map(event => (
+                <div key={event.id} className="px-6 py-3 flex justify-between items-center">
+                  <div>
+                    <p className="font-medium">{event.title}</p>
+                    <p className="text-sm text-gray-500">{event.organizer}</p>
                   </div>
-                  <Link to={`/event/${event.id}`} className="flex items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:text-green-600 rounded-lg transition-colors">
-                    <Eye className="size-4" />
-                    View
-                  </Link>
+                  <div className="flex items-center gap-3">
+                    <span className="text-sm">{event.tickets_sold} tickets</span>
+                    <Link to={`/event/${event.id}`} className="text-green-600">
+                      <Eye className="size-4" />
+                    </Link>
+                  </div>
                 </div>
-              </div>
-            ))}
+              ))}
+            </div>
           </div>
-        </div>
-
-        {/* Quick Actions */}
-        <div className="bg-white rounded-2xl shadow-sm">
-          <div className="px-6 py-4 border-b border-gray-200">
-            <h2 className="text-xl font-bold text-gray-900">Quick Actions</h2>
-          </div>
-          <div className="p-6">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <Link to="/admin/users" className="flex items-center justify-center gap-3 px-6 py-4 border-2 border-gray-200 rounded-xl hover:border-green-500 hover:bg-green-50 transition-all font-semibold text-gray-900">
-                <Users className="size-5" />
-                View All Users
+          
+          {/* Quick Actions */}
+          <div className="bg-white rounded-2xl shadow-sm">
+            <div className="px-6 py-4 border-b">
+              <h2 className="text-xl font-bold">Quick Actions</h2>
+            </div>
+            <div className="p-6 space-y-3">
+              <Link to="/admin/users" className="flex items-center justify-between p-3 bg-gray-50 rounded-xl hover:bg-gray-100">
+                <span>��� Manage Admins</span> <ChevronRight className="size-4" />
               </Link>
-              <Link to="/admin/events" className="flex items-center justify-center gap-3 px-6 py-4 border-2 border-gray-200 rounded-xl hover:border-green-500 hover:bg-green-50 transition-all font-semibold text-gray-900">
-                <Calendar className="size-5" />
-                View All Events
+              <Link to="/admin/events" className="flex items-center justify-between p-3 bg-gray-50 rounded-xl hover:bg-gray-100">
+                <span>��� Manage Events</span> <ChevronRight className="size-4" />
               </Link>
-              <Link to="/admin/categories" className="flex items-center justify-center gap-3 px-6 py-4 border-2 border-gray-200 rounded-xl hover:border-green-500 hover:bg-green-50 transition-all font-semibold text-gray-900">
-                <TrendingUp className="size-5" />
-                Manage Categories
+              <Link to="/admin/categories" className="flex items-center justify-between p-3 bg-gray-50 rounded-xl hover:bg-gray-100">
+                <span>���️ Manage Categories</span> <ChevronRight className="size-4" />
+              </Link>
+              <Link to="/admin/settings" className="flex items-center justify-between p-3 bg-gray-50 rounded-xl hover:bg-gray-100">
+                <span>⚙️ Platform Settings</span> <ChevronRight className="size-4" />
               </Link>
             </div>
           </div>

@@ -1,65 +1,29 @@
 const { sequelize } = require('../config/database');
 
-// @desc    Get all events
-// @route   GET /api/events
-// @access  Public
+// Get all events
 const getEvents = async (req, res) => {
   try {
-    const { page = 1, limit = 10, category, city, search } = req.query;
-    const offset = (page - 1) * limit;
-    
-    let query = `
+    const [events] = await sequelize.query(`
       SELECT e.*, ec.name as category_name 
       FROM events e
       LEFT JOIN event_categories ec ON e.category_id = ec.id
       WHERE e.status = 'published'
-    `;
-    const replacements = [];
-    
-    if (category) {
-      query += ` AND e.category_id = ?`;
-      replacements.push(category);
-    }
-    if (city) {
-      query += ` AND e.city = ?`;
-      replacements.push(city);
-    }
-    if (search) {
-      query += ` AND (e.title LIKE ? OR e.description LIKE ?)`;
-      replacements.push(`%${search}%`, `%${search}%`);
-    }
-    
-    query += ` ORDER BY e.start_datetime ASC LIMIT ? OFFSET ?`;
-    replacements.push(parseInt(limit), parseInt(offset));
-    
-    const [events] = await sequelize.query(query, { replacements });
-    
-    // Get total count
-    let countQuery = `SELECT COUNT(*) as total FROM events e WHERE e.status = 'published'`;
-    const [countResult] = await sequelize.query(countQuery);
-    
-    res.json({
-      success: true,
-      total: countResult[0]?.total || 0,
-      page: parseInt(page),
-      totalPages: Math.ceil((countResult[0]?.total || 0) / limit),
-      events
-    });
+      ORDER BY e.start_datetime ASC
+    `);
+    res.json({ success: true, events });
   } catch (error) {
-    console.error(error);
+    console.error('Get events error:', error);
     res.status(500).json({ message: 'Server error' });
   }
 };
 
-// @desc    Get single event
-// @route   GET /api/events/:id
-// @access  Public
+// Get single event
 const getEventById = async (req, res) => {
   try {
     const [events] = await sequelize.query(
       `SELECT e.*, ec.name as category_name 
        FROM events e
-       LEFT JOIN event_categories ec ON e.category_id = ec.id
+       LEFT JOIN event_categories ec ON e.category_id = ec.id 
        WHERE e.id = ?`,
       { replacements: [req.params.id] }
     );
@@ -68,63 +32,90 @@ const getEventById = async (req, res) => {
       return res.status(404).json({ message: 'Event not found' });
     }
     
-    // Get ticket types
     const [tickets] = await sequelize.query(
       'SELECT * FROM ticket_types WHERE event_id = ? AND is_active = true',
       { replacements: [req.params.id] }
     );
     
-    res.json({ 
-      success: true, 
-      event: events[0],
-      ticket_types: tickets
-    });
+    res.json({ success: true, event: events[0], ticket_types: tickets });
   } catch (error) {
-    console.error(error);
+    console.error('Get event by ID error:', error);
     res.status(500).json({ message: 'Server error' });
   }
 };
 
-// @desc    Create event
-// @route   POST /api/events
-// @access  Private
+// Create event
 const createEvent = async (req, res) => {
   try {
-    const eventData = req.body;
+    const { 
+      title, category_id, event_type, description, 
+      start_datetime, end_datetime, city, venue_name, 
+      address_line1, ticket_types 
+    } = req.body;
     
-    const [result] = await sequelize.query(
-      `INSERT INTO events (id, organizer_id, title, category_id, event_type, description, 
-        start_datetime, end_datetime, city, venue_name, address_line1, status)
-       VALUES (UUID(), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'draft')`,
-      { replacements: [
-        req.user?.id || 'test-user-id',
-        eventData.title,
-        eventData.category_id,
-        eventData.event_type || 'conference',
-        eventData.description,
-        eventData.start_datetime,
-        eventData.end_datetime,
-        eventData.city,
-        eventData.venue_name,
-        eventData.address_line1
-      ]}
+    console.log('Creating event for user:', req.user.id);
+    
+    // Insert event using MySQL UUID
+    const [result] = await sequelize.query(`
+      INSERT INTO events (
+        id, organizer_id, title, category_id, event_type, 
+        description, start_datetime, end_datetime, city, 
+        venue_name, address_line1, status, created_at
+      ) VALUES (
+        REPLACE(UUID(), '-', ''), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'published', NOW()
+      )
+    `, { 
+      replacements: [
+        req.user.id, title, category_id, event_type, 
+        description, start_datetime, end_datetime, city, 
+        venue_name, address_line1
+      ] 
+    });
+    
+    // Get the created event ID
+    const [newEvent] = await sequelize.query(
+      'SELECT id FROM events WHERE organizer_id = ? ORDER BY created_at DESC LIMIT 1',
+      { replacements: [req.user.id] }
     );
     
-    res.status(201).json({ success: true, message: 'Event created' });
+    const eventId = newEvent[0].id;
+    console.log('Event created with ID:', eventId);
+    
+    // Insert ticket types if provided
+    if (ticket_types && ticket_types.length > 0) {
+      for (const ticket of ticket_types) {
+        if (ticket.price && ticket.capacity) {
+          await sequelize.query(`
+            INSERT INTO ticket_types (
+              id, event_id, tier_name, price, currency, 
+              capacity, remaining_quantity, benefits, is_active
+            ) VALUES (
+              REPLACE(UUID(), '-', ''), ?, ?, ?, 'ETB', ?, ?, ?, true
+            )
+          `, { 
+            replacements: [
+              eventId, ticket.tier_name, ticket.price, 
+              ticket.capacity, ticket.remaining_quantity || ticket.capacity, 
+              ticket.benefits || ''
+            ] 
+          });
+          console.log('Added ticket type:', ticket.tier_name);
+        }
+      }
+    }
+    
+    res.status(201).json({ success: true, event_id: eventId });
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: 'Server error' });
+    console.error('Create event error:', error);
+    res.status(500).json({ message: 'Server error', error: error.message });
   }
 };
 
-// @desc    Update event
-// @route   PUT /api/events/:id
-// @access  Private
+// Update event
 const updateEvent = async (req, res) => {
   try {
     const eventId = req.params.id;
     
-    // Check if event exists
     const [events] = await sequelize.query(
       'SELECT * FROM events WHERE id = ?',
       { replacements: [eventId] }
@@ -136,35 +127,31 @@ const updateEvent = async (req, res) => {
     
     const event = events[0];
     
-    // Check ownership
-    if (event.organizer_id !== req.user?.id) {
-      return res.status(403).json({ message: 'Not authorized to update this event' });
+    if (event.organizer_id !== req.user.id) {
+      return res.status(403).json({ message: 'Not authorized' });
     }
     
-    const updates = req.body;
-    const setClause = Object.keys(updates).map(key => `${key} = ?`).join(', ');
-    const values = [...Object.values(updates), eventId];
+    const { title, description, start_datetime, end_datetime, city, venue_name, address_line1 } = req.body;
     
-    await sequelize.query(
-      `UPDATE events SET ${setClause}, updated_at = NOW() WHERE id = ?`,
-      { replacements: values }
-    );
+    await sequelize.query(`
+      UPDATE events 
+      SET title = ?, description = ?, start_datetime = ?, end_datetime = ?, 
+          city = ?, venue_name = ?, address_line1 = ?, updated_at = NOW()
+      WHERE id = ?
+    `, { replacements: [title, description, start_datetime, end_datetime, city, venue_name, address_line1, eventId] });
     
     res.json({ success: true, message: 'Event updated successfully' });
   } catch (error) {
-    console.error(error);
+    console.error('Update event error:', error);
     res.status(500).json({ message: 'Server error' });
   }
 };
 
-// @desc    Delete event
-// @route   DELETE /api/events/:id
-// @access  Private
+// Delete event
 const deleteEvent = async (req, res) => {
   try {
     const eventId = req.params.id;
     
-    // Check if event exists
     const [events] = await sequelize.query(
       'SELECT * FROM events WHERE id = ?',
       { replacements: [eventId] }
@@ -176,39 +163,32 @@ const deleteEvent = async (req, res) => {
     
     const event = events[0];
     
-    // Check ownership
-    if (event.organizer_id !== req.user?.id) {
-      return res.status(403).json({ message: 'Not authorized to delete this event' });
+    if (event.organizer_id !== req.user.id) {
+      return res.status(403).json({ message: 'Not authorized' });
     }
     
-    await sequelize.query(
-      'DELETE FROM events WHERE id = ?',
-      { replacements: [eventId] }
-    );
+    await sequelize.query('DELETE FROM events WHERE id = ?', { replacements: [eventId] });
     
     res.json({ success: true, message: 'Event deleted successfully' });
   } catch (error) {
-    console.error(error);
+    console.error('Delete event error:', error);
     res.status(500).json({ message: 'Server error' });
   }
 };
 
-// @desc    Get featured events
-// @route   GET /api/events/featured
-// @access  Public
+// Get featured events
 const getFeaturedEvents = async (req, res) => {
   try {
-    const [events] = await sequelize.query(
-      `SELECT e.*, ec.name as category_name 
-       FROM events e
-       LEFT JOIN event_categories ec ON e.category_id = ec.id
-       WHERE e.is_featured = true AND e.status = 'published'
-       LIMIT 6`
-    );
-    
+    const [events] = await sequelize.query(`
+      SELECT e.*, ec.name as category_name 
+      FROM events e
+      LEFT JOIN event_categories ec ON e.category_id = ec.id
+      WHERE e.is_featured = true AND e.status = 'published'
+      LIMIT 6
+    `);
     res.json({ success: true, events });
   } catch (error) {
-    console.error(error);
+    console.error('Get featured events error:', error);
     res.status(500).json({ message: 'Server error' });
   }
 };

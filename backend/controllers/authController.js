@@ -1,16 +1,13 @@
 const jwt = require('jsonwebtoken');
+const bcrypt = require('bcryptjs');
 const { sequelize } = require('../config/database');
 
-// Generate JWT Token
 const generateToken = (id) => {
   return jwt.sign({ id }, process.env.JWT_SECRET || 'dems-secret-key', {
     expiresIn: process.env.JWT_EXPIRE || '7d'
   });
 };
 
-// @desc    Register new user
-// @route   POST /api/auth/register
-// @access  Public
 const register = async (req, res) => {
   try {
     const { full_name, email, password, phone, user_name } = req.body;
@@ -25,11 +22,15 @@ const register = async (req, res) => {
       return res.status(400).json({ message: 'User already exists' });
     }
     
+    // Hash password
+    const salt = await bcrypt.genSalt(10);
+    const hashedPassword = await bcrypt.hash(password, salt);
+    
     // Create user (role_id: 3 = attendee)
-    const [result] = await sequelize.query(
+    await sequelize.query(
       `INSERT INTO users (id, role_id, full_name, email, password_hash, phone, user_name, status) 
-       VALUES (UUID(), ?, ?, ?, ?, ?, ?, 'active')`,
-      { replacements: [3, full_name, email, password, phone, user_name || email.split('@')[0]] }
+       VALUES (REPLACE(UUID(), '-', ''), ?, ?, ?, ?, ?, ?, 'active')`,
+      { replacements: [3, full_name, email, hashedPassword, phone || null, user_name || email.split('@')[0]] }
     );
     
     // Get the created user
@@ -38,7 +39,6 @@ const register = async (req, res) => {
       { replacements: [email] }
     );
     
-    // Generate token
     const token = generateToken(newUser[0].id);
     
     res.status(201).json({
@@ -52,9 +52,6 @@ const register = async (req, res) => {
   }
 };
 
-// @desc    Login user
-// @route   POST /api/auth/login
-// @access  Public
 const login = async (req, res) => {
   try {
     const { email, password } = req.body;
@@ -71,8 +68,9 @@ const login = async (req, res) => {
     
     const user = users[0];
     
-    // Simple password check (in production, use bcrypt)
-    if (password !== user.password_hash && user.password_hash !== password) {
+    // Check password
+    const isPasswordValid = await bcrypt.compare(password, user.password_hash);
+    if (!isPasswordValid) {
       return res.status(401).json({ message: 'Invalid credentials' });
     }
     
@@ -102,37 +100,4 @@ const login = async (req, res) => {
   }
 };
 
-// @desc    Send OTP (simplified)
-// @route   POST /api/auth/send-otp
-// @access  Public
-const sendOTP = async (req, res) => {
-  try {
-    const { email } = req.body;
-    const otp = Math.floor(100000 + Math.random() * 900000).toString();
-    
-    console.log(`í³§ OTP for ${email}: ${otp}`);
-    
-    res.json({ success: true, message: 'OTP sent successfully', otp: otp });
-  } catch (error) {
-    res.status(500).json({ message: 'Failed to send OTP' });
-  }
-};
-
-// @desc    Verify OTP
-// @route   POST /api/auth/verify-otp
-// @access  Public
-const verifyOTP = async (req, res) => {
-  try {
-    const { otp, sentOtp } = req.body;
-    
-    if (otp === sentOtp) {
-      res.json({ success: true, message: 'OTP verified successfully' });
-    } else {
-      res.status(400).json({ message: 'Invalid OTP' });
-    }
-  } catch (error) {
-    res.status(500).json({ message: 'Verification failed' });
-  }
-};
-
-module.exports = { register, login, sendOTP, verifyOTP };
+module.exports = { register, login };

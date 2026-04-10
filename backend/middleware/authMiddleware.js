@@ -36,8 +36,23 @@ const authorize = (...roles) => {
     if (!req.user) {
       return res.status(401).json({ message: 'Not authenticated' });
     }
-    // For now, allow all authenticated users
-    // In production, check roles properly
+    
+    // Check if user's role_id matches any of the allowed roles
+    // role_id: 1=admin, 2=organizer, 3=attendee, 4=staff, 5=security
+    const allowedRoleIds = {
+      'admin': [1],
+      'organizer': [1, 2],
+      'attendee': [1, 2, 3],
+      'staff': [1, 2, 4],
+      'security': [1, 2, 5]
+    };
+    
+    const allowed = roles.some(role => allowedRoleIds[role]?.includes(req.user.role_id));
+    
+    if (!allowed) {
+      return res.status(403).json({ message: 'Not authorized for this action' });
+    }
+    
     next();
   };
 };

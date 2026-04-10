@@ -1,102 +1,73 @@
 import { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
-import { TrendingUp, Users, DollarSign, Calendar, BarChart3, UserCog, Coffee, Star, Ticket } from 'lucide-react';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
-
-// Mock data for demonstration
-const mockDashboardData = {
-  total_events: 12,
-  total_tickets_sold: 8450,
-  total_revenue: 2450000,
-  revenue_by_event: [
-    { event_title: 'Ethiopian Coffee Festival', revenue: 850000 },
-    { event_title: 'Hawassa Music Festival', revenue: 620000 },
-    { event_title: 'Gondar Traditional Dance', revenue: 380000 },
-    { event_title: 'Addis Tech Summit', revenue: 600000 },
-  ],
-  live_events: [
-    {
-      id: '1',
-      title: 'ታላቁ የኢትዮጵያ ቡና ፌስቲቫል',
-      category_name: 'Cultural',
-      status: 'published',
-      thumbnail_url: 'https://images.unsplash.com/photo-1442512595331-e89e73853f31'
-    }
-  ],
-  past_events: [
-    {
-      id: '2',
-      title: 'ባህላዊ የጎንደር ዳንስ',
-      category_name: 'Cultural',
-      status: 'completed',
-      rating: 4.8,
-      review_count: 234
-    }
-  ]
-};
-
-const mockEventStats = {
-  event_id: '1',
-  tickets_sold_total: 1500,
-  checked_in_total: 890,
-  normal_sold: 1200,
-  vip_sold: 250,
-  vvip_sold: 50
-};
+import { Link, useNavigate } from 'react-router-dom';
+import { 
+  Calendar, Users, DollarSign, TrendingUp, PlusCircle, Ticket, 
+  Star, Eye, RefreshCw, UserCog, Wallet, BarChart3, 
+  Settings, LogOut, Home, Bell, Shield, Award, Clock, MapPin
+} from 'lucide-react';
+import { eventAPI } from '../../api/client';
+import { useAuth } from '../../contexts/AuthContext';
 
 export function OrganizerDashboard() {
-  const [dashboard, setDashboard] = useState(null);
-  const [selectedEventStats, setSelectedEventStats] = useState(null);
+  const { user, logout } = useAuth();
+  const navigate = useNavigate();
+  const [events, setEvents] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [stats, setStats] = useState({
+    total_events: 0,
+    total_tickets_sold: 0,
+    total_revenue: 0,
+    pending_approvals: 0,
+    completed_events: 0
+  });
 
-  useEffect(() => {
-    loadDashboard();
-  }, []);
-
-  const loadDashboard = async () => {
+  const fetchEvents = async () => {
     setLoading(true);
     try {
-      // Simulate API call
-      setTimeout(() => {
-        setDashboard(mockDashboardData);
-        if (mockDashboardData.live_events.length > 0) {
-          setSelectedEventStats(mockEventStats);
-        }
-        setLoading(false);
-      }, 800);
+      const response = await eventAPI.getAll();
+      if (response.success) {
+        const allEvents = response.events || [];
+        const publishedEvents = allEvents.filter(e => e.status === 'published');
+        const completedEvents = allEvents.filter(e => new Date(e.end_datetime) < new Date());
+        
+        setEvents(allEvents);
+        setStats({
+          total_events: allEvents.length,
+          total_tickets_sold: allEvents.reduce((sum, e) => sum + (e.tickets_sold || 0), 0),
+          total_revenue: allEvents.reduce((sum, e) => sum + (e.total_revenue || 0), 0),
+          pending_approvals: allEvents.filter(e => e.status === 'pending').length,
+          completed_events: completedEvents.length
+        });
+      }
     } catch (error) {
-      console.error('Error loading dashboard:', error);
+      console.error('Error fetching events:', error);
+    } finally {
       setLoading(false);
     }
   };
 
+  useEffect(() => {
+    fetchEvents();
+  }, []);
+
+  const handleLogout = () => {
+    logout();
+    navigate('/login');
+  };
+
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-b from-gray-50 to-white">
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
         <div className="text-center">
-          <div className="relative">
-            <div className="animate-spin size-16 border-4 border-green-200 border-t-green-600 rounded-full mb-4" />
-            <div className="absolute inset-0 flex items-center justify-center">
-              <Coffee className="size-6 text-green-600 animate-pulse" />
-            </div>
-          </div>
-          <p className="text-gray-500 mt-4">Loading dashboard...</p>
+          <div className="animate-spin size-12 border-4 border-green-200 border-t-green-600 rounded-full mb-4" />
+          <p className="text-gray-500">Loading dashboard...</p>
         </div>
       </div>
     );
   }
 
-  if (!dashboard) {
-    return <div className="text-center py-12">No data available</div>;
-  }
-
-  const chartData = dashboard.revenue_by_event.map(item => ({
-    name: item.event_title.length > 20 ? item.event_title.substring(0, 20) + '...' : item.event_title,
-    revenue: item.revenue,
-  }));
-
   return (
-    <div className="min-h-screen bg-gray-50 py-8 px-4">
+    <div className="min-h-screen bg-gray-50">
       {/* Ethiopian Tricolor Accent */}
       <div className="fixed top-16 left-0 right-0 h-1 flex z-40">
         <div className="flex-1 bg-green-600" />
@@ -104,241 +75,129 @@ export function OrganizerDashboard() {
         <div className="flex-1 bg-red-600" />
       </div>
 
-      <div className="max-w-7xl mx-auto">
-        {/* Header */}
-        <div className="flex flex-col md:flex-row items-start md:items-center justify-between mb-8">
+      <div className="max-w-7xl mx-auto px-4 py-8">
+        {/* Header with Welcome and Actions */}
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8">
           <div>
-            <div className="flex items-center gap-3 mb-2">
-              <div className="w-12 h-12 bg-gradient-to-br from-green-600 via-yellow-500 to-red-600 rounded-2xl flex items-center justify-center shadow-md">
-                <Calendar className="size-6 text-white" />
-              </div>
-              <h1 className="text-3xl font-bold text-gray-900">Organizer Dashboard</h1>
-            </div>
-            <p className="text-gray-600 ml-16">Manage your events and track performance</p>
+            <h1 className="text-3xl font-bold text-gray-900">Organizer Dashboard</h1>
+            <p className="text-gray-600 mt-1">Welcome back, {user?.full_name?.split(' ')[0] || 'Organizer'}!</p>
           </div>
-          <div className="flex gap-3 mt-4 md:mt-0">
-            <Link
-              to="/staff/management"
-              className="px-5 py-2.5 bg-white border-2 border-gray-900 text-gray-900 rounded-xl font-semibold hover:bg-gray-50 transition-colors flex items-center gap-2"
+          <div className="flex flex-wrap gap-3 mt-4 md:mt-0">
+            <button 
+              onClick={fetchEvents}
+              className="px-4 py-2 bg-white border border-gray-300 rounded-xl text-gray-700 hover:bg-gray-50 flex items-center gap-2 transition"
             >
-              <UserCog className="size-5" />
-              Staff Management
-            </Link>
-            <Link
-              to="/organizer/create-event"
-              className="px-5 py-2.5 bg-gradient-to-r from-green-600 to-green-700 text-white rounded-xl font-semibold hover:from-green-700 hover:to-green-800 transition-all shadow-md"
+              <RefreshCw className="size-4" /> Refresh
+            </button>
+            <Link 
+              to="/organizer/create-event" 
+              className="px-5 py-2 bg-gradient-to-r from-green-600 to-green-700 text-white rounded-xl font-semibold hover:from-green-700 hover:to-green-800 transition flex items-center gap-2 shadow-md"
             >
-              Create New Event
+              <PlusCircle className="size-5" /> Create Event
             </Link>
           </div>
+        </div>
+
+        {/* Quick Navigation Cards */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+          <Link to="/staff/management" className="bg-white rounded-2xl p-4 shadow-sm hover:shadow-md transition border-l-4 border-blue-500">
+            <UserCog className="size-8 text-blue-500 mb-2" />
+            <h3 className="font-semibold text-gray-900">Staff Management</h3>
+            <p className="text-xs text-gray-500">Manage your team</p>
+          </Link>
+          <Link to="/organizer/payouts" className="bg-white rounded-2xl p-4 shadow-sm hover:shadow-md transition border-l-4 border-yellow-500">
+            <Wallet className="size-8 text-yellow-500 mb-2" />
+            <h3 className="font-semibold text-gray-900">Payout Settings</h3>
+            <p className="text-xs text-gray-500">Bank & withdrawals</p>
+          </Link>
+          <Link to="/organizer/analytics" className="bg-white rounded-2xl p-4 shadow-sm hover:shadow-md transition border-l-4 border-purple-500">
+            <BarChart3 className="size-8 text-purple-500 mb-2" />
+            <h3 className="font-semibold text-gray-900">Analytics</h3>
+            <p className="text-xs text-gray-500">Event performance</p>
+          </Link>
+          <Link to="/profile" className="bg-white rounded-2xl p-4 shadow-sm hover:shadow-md transition border-l-4 border-gray-500">
+            <Settings className="size-8 text-gray-500 mb-2" />
+            <h3 className="font-semibold text-gray-900">Settings</h3>
+            <p className="text-xs text-gray-500">Account preferences</p>
+          </Link>
         </div>
 
         {/* Stats Overview */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-          <div className="bg-white rounded-2xl p-6 shadow-sm border-l-4 border-green-500">
-            <div className="flex items-center gap-3 mb-2">
-              <div className="p-2 bg-green-100 rounded-xl">
-                <Calendar className="size-6 text-green-600" />
-              </div>
-              <div className="text-sm text-gray-600">Total Events</div>
-            </div>
-            <div className="text-3xl font-bold text-gray-900">{dashboard.total_events}</div>
-          </div>
-
-          <div className="bg-white rounded-2xl p-6 shadow-sm border-l-4 border-yellow-500">
-            <div className="flex items-center gap-3 mb-2">
-              <div className="p-2 bg-yellow-100 rounded-xl">
-                <Ticket className="size-6 text-yellow-600" />
-              </div>
-              <div className="text-sm text-gray-600">Tickets Sold</div>
-            </div>
-            <div className="text-3xl font-bold text-gray-900">
-              {dashboard.total_tickets_sold.toLocaleString()}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 mb-8">
+          <div className="bg-white rounded-2xl p-5 shadow-sm border-l-4 border-green-500">
+            <div className="flex items-center justify-between">
+              <div><p className="text-sm text-gray-600">Total Events</p><p className="text-3xl font-bold text-gray-900">{stats.total_events}</p></div>
+              <Calendar className="size-10 text-green-400" />
             </div>
           </div>
-
-          <div className="bg-white rounded-2xl p-6 shadow-sm border-l-4 border-red-500">
-            <div className="flex items-center gap-3 mb-2">
-              <div className="p-2 bg-red-100 rounded-xl">
-                <DollarSign className="size-6 text-red-600" />
-              </div>
-              <div className="text-sm text-gray-600">Total Revenue</div>
-            </div>
-            <div className="text-3xl font-bold text-gray-900">
-              {dashboard.total_revenue.toLocaleString()} ETB
+          <div className="bg-white rounded-2xl p-5 shadow-sm border-l-4 border-blue-500">
+            <div className="flex items-center justify-between">
+              <div><p className="text-sm text-gray-600">Tickets Sold</p><p className="text-3xl font-bold text-gray-900">{stats.total_tickets_sold.toLocaleString()}</p></div>
+              <Ticket className="size-10 text-blue-400" />
             </div>
           </div>
-
-          <div className="bg-white rounded-2xl p-6 shadow-sm border-l-4 border-purple-500">
-            <div className="flex items-center gap-3 mb-2">
-              <div className="p-2 bg-purple-100 rounded-xl">
-                <TrendingUp className="size-6 text-purple-600" />
-              </div>
-              <div className="text-sm text-gray-600">Avg per Event</div>
+          <div className="bg-white rounded-2xl p-5 shadow-sm border-l-4 border-yellow-500">
+            <div className="flex items-center justify-between">
+              <div><p className="text-sm text-gray-600">Total Revenue</p><p className="text-3xl font-bold text-gray-900">ETB {stats.total_revenue.toLocaleString()}</p></div>
+              <DollarSign className="size-10 text-yellow-400" />
             </div>
-            <div className="text-3xl font-bold text-gray-900">
-              {Math.round(dashboard.total_revenue / dashboard.total_events).toLocaleString()} ETB
+          </div>
+          <div className="bg-white rounded-2xl p-5 shadow-sm border-l-4 border-orange-500">
+            <div className="flex items-center justify-between">
+              <div><p className="text-sm text-gray-600">Pending</p><p className="text-3xl font-bold text-gray-900">{stats.pending_approvals}</p></div>
+              <Clock className="size-10 text-orange-400" />
+            </div>
+          </div>
+          <div className="bg-white rounded-2xl p-5 shadow-sm border-l-4 border-purple-500">
+            <div className="flex items-center justify-between">
+              <div><p className="text-sm text-gray-600">Completed</p><p className="text-3xl font-bold text-gray-900">{stats.completed_events}</p></div>
+              <Award className="size-10 text-purple-400" />
             </div>
           </div>
         </div>
 
-        {/* Revenue Chart */}
-        <div className="bg-white rounded-2xl p-6 shadow-sm mb-8">
-          <div className="flex items-center gap-2 mb-6">
-            <BarChart3 className="size-6 text-gray-700" />
-            <h2 className="text-xl font-bold text-gray-900">Revenue by Event</h2>
+        {/* My Events Section */}
+        <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
+          <div className="px-6 py-4 border-b border-gray-200 flex justify-between items-center">
+            <h2 className="text-xl font-bold text-gray-900">My Events</h2>
+            <Link to="/discover" className="text-sm text-green-600 hover:text-green-700">View Public Page →</Link>
           </div>
-          <ResponsiveContainer width="100%" height={300}>
-            <BarChart data={chartData}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-              <XAxis dataKey="name" tick={{ fontSize: 12 }} />
-              <YAxis tick={{ fontSize: 12 }} />
-              <Tooltip />
-              <Bar dataKey="revenue" fill="#16a34a" radius={[8, 8, 0, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
-
-        {/* Live Events */}
-        {dashboard.live_events.length > 0 && (
-          <div className="mb-8">
-            <h2 className="text-2xl font-bold text-gray-900 mb-4">Live Events</h2>
-            <div className="grid grid-cols-1 gap-6">
-              {dashboard.live_events.map((event) => (
-                <div key={event.id} className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
-                  <div className="flex flex-col md:flex-row gap-6">
-                    <div className="w-full md:w-32 h-32 rounded-xl overflow-hidden bg-gray-100">
-                      {event.thumbnail_url ? (
-                        <img
-                          src={event.thumbnail_url}
-                          alt={event.title}
-                          className="w-full h-full object-cover"
-                        />
-                      ) : (
-                        <div className="w-full h-full flex items-center justify-center">
-                          <Calendar className="size-8 text-gray-400" />
-                        </div>
-                      )}
-                    </div>
-
+          
+          {events.length === 0 ? (
+            <div className="text-center py-12">
+              <Calendar className="size-12 text-gray-300 mx-auto mb-3" />
+              <p className="text-gray-500">No events created yet</p>
+              <Link to="/organizer/create-event" className="mt-4 inline-block text-green-600 hover:underline">Create your first event</Link>
+            </div>
+          ) : (
+            <div className="divide-y divide-gray-200">
+              {events.map((event) => (
+                <div key={event.id} className="px-6 py-4 hover:bg-gray-50 transition">
+                  <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                     <div className="flex-1">
-                      <div className="flex flex-col md:flex-row md:items-start justify-between gap-3 mb-4">
-                        <div>
-                          <h3 className="text-xl font-bold text-gray-900 mb-1">{event.title}</h3>
-                          <p className="text-sm text-gray-500">{event.category_name}</p>
-                        </div>
-                        <span className="px-3 py-1 bg-green-100 text-green-700 rounded-full text-sm font-medium self-start">
-                          Live
-                        </span>
+                      <h3 className="font-semibold text-gray-900">{event.title}</h3>
+                      <div className="flex flex-wrap gap-4 mt-1 text-sm text-gray-500">
+                        <span className="flex items-center gap-1"><Calendar className="size-3" />{new Date(event.start_datetime).toLocaleDateString()}</span>
+                        <span className="flex items-center gap-1"><MapPin className="size-3" />{event.city}</span>
+                        <span className={`px-2 py-0.5 rounded-full text-xs ${event.status === 'published' ? 'bg-green-100 text-green-700' : event.status === 'draft' ? 'bg-yellow-100 text-yellow-700' : 'bg-gray-100 text-gray-700'}`}>{event.status}</span>
                       </div>
-
-                      {selectedEventStats && selectedEventStats.event_id === event.id && (
-                        <div className="mt-4">
-                          <div className="flex items-center justify-between mb-2">
-                            <span className="text-sm text-gray-600">Check-in Progress</span>
-                            <span className="text-sm font-semibold text-gray-900">
-                              {selectedEventStats.checked_in_total} / {selectedEventStats.tickets_sold_total}
-                            </span>
-                          </div>
-                          <div className="w-full bg-gray-200 rounded-full h-2 overflow-hidden">
-                            <div
-                              className="bg-green-600 h-full rounded-full transition-all duration-500"
-                              style={{
-                                width: `${(selectedEventStats.checked_in_total / selectedEventStats.tickets_sold_total) * 100}%`,
-                              }}
-                            />
-                          </div>
-
-                          <div className="grid grid-cols-3 gap-4 mt-4">
-                            <div className="bg-gray-50 rounded-xl p-3 text-center">
-                              <div className="text-xs text-gray-600 mb-1">Normal</div>
-                              <div className="text-lg font-bold text-gray-900">
-                                {selectedEventStats.normal_sold}
-                              </div>
-                            </div>
-                            <div className="bg-gray-50 rounded-xl p-3 text-center">
-                              <div className="text-xs text-gray-600 mb-1">VIP</div>
-                              <div className="text-lg font-bold text-gray-900">
-                                {selectedEventStats.vip_sold}
-                              </div>
-                            </div>
-                            <div className="bg-gray-50 rounded-xl p-3 text-center">
-                              <div className="text-xs text-gray-600 mb-1">VVIP</div>
-                              <div className="text-lg font-bold text-gray-900">
-                                {selectedEventStats.vvip_sold}
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                      )}
+                    </div>
+                    <div className="flex gap-2">
+                      <Link to={`/event/${event.id}`} className="px-3 py-1.5 text-green-600 hover:bg-green-50 rounded-lg text-sm flex items-center gap-1"><Eye className="size-4" /> View</Link>
+                      <Link to={`/organizer/analytics/${event.id}`} className="px-3 py-1.5 text-purple-600 hover:bg-purple-50 rounded-lg text-sm flex items-center gap-1"><BarChart3 className="size-4" /> Stats</Link>
                     </div>
                   </div>
                 </div>
               ))}
             </div>
-          </div>
-        )}
+          )}
+        </div>
 
-        {/* All Events Table */}
-        <div>
-          <h2 className="text-2xl font-bold text-gray-900 mb-4">All Events</h2>
-          <div className="bg-white rounded-2xl shadow-sm overflow-hidden border border-gray-100">
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead className="bg-gray-50 border-b border-gray-200">
-                  <tr>
-                    <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase">Event</th>
-                    <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase">Category</th>
-                    <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase">Status</th>
-                    <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase">Rating</th>
-                    <th className="px-6 py-4 text-right text-xs font-semibold text-gray-700 uppercase">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-200">
-                  {[...dashboard.live_events, ...dashboard.past_events].map((event) => (
-                    <tr key={event.id} className="hover:bg-gray-50 transition-colors">
-                      <td className="px-6 py-4">
-                        <div className="font-semibold text-gray-900">{event.title}</div>
-                      </td>
-                      <td className="px-6 py-4">
-                        <div className="text-sm text-gray-600">{event.category_name}</div>
-                      </td>
-                      <td className="px-6 py-4">
-                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                          event.status === 'published'
-                            ? 'bg-green-100 text-green-700'
-                            : event.status === 'completed'
-                            ? 'bg-gray-100 text-gray-700'
-                            : 'bg-yellow-100 text-yellow-700'
-                        }`}>
-                          {event.status}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4">
-                        {event.rating ? (
-                          <div className="flex items-center gap-1">
-                            <Star className="size-4 fill-yellow-400 text-yellow-400" />
-                            <span className="font-semibold text-gray-900">{event.rating.toFixed(1)}</span>
-                            <span className="text-xs text-gray-500">({event.review_count})</span>
-                          </div>
-                        ) : (
-                          <span className="text-sm text-gray-400">No reviews</span>
-                        )}
-                      </td>
-                      <td className="px-6 py-4 text-right">
-                        <Link
-                          to={`/event/${event.id}`}
-                          className="text-sm text-green-600 hover:text-green-700 font-medium"
-                        >
-                          View
-                        </Link>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
+        {/* Logout Button at Bottom */}
+        <div className="mt-8 flex justify-end">
+          <button onClick={handleLogout} className="px-6 py-2 bg-red-50 text-red-600 rounded-xl hover:bg-red-100 transition flex items-center gap-2">
+            <LogOut className="size-4" /> Logout
+          </button>
         </div>
       </div>
     </div>

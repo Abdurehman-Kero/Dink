@@ -1,60 +1,105 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { 
-  CreditCard, Banknote, Shield, AlertCircle, CheckCircle, 
-  Save, Eye, EyeOff, Building, Smartphone, Wallet
+  CreditCard, Lock, CheckCircle, Clock, 
+  Shield, Wallet, Loader, Building, Smartphone,
+  ArrowRight, DollarSign, TrendingUp
 } from 'lucide-react';
+import { useAuth } from '../../contexts/AuthContext';
+
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
 export function PayoutSettingsPage() {
-  const [saving, setSaving] = useState(false);
-  const [showBankDetails, setShowBankDetails] = useState(false);
-  const [formData, setFormData] = useState({
-    bank_account_name: '',
-    bank_name: '',
-    bank_account_number: '',
-    confirm_account_number: '',
-    iban: '',
-    swift_code: '',
-    bank_branch: '',
-    account_type: 'business'
+  const { user } = useAuth();
+  const [loading, setLoading] = useState(true);
+  const [processing, setProcessing] = useState(false);
+  const [error, setError] = useState('');
+  const [paymentAmount, setPaymentAmount] = useState('');
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [paymentMethod, setPaymentMethod] = useState('telebirr');
+
+  const [stats, setStats] = useState({
+    total_fee_due: 5000,
+    total_paid: 2500,
+    pending_payment: 2500,
+    next_payment_date: '2024-04-15',
+    platform_fee_percentage: 10
   });
 
-  const [payoutHistory] = useState([
-    { id: '1', date: '2024-02-15', amount: 12500, status: 'completed', event: 'Ethiopian Coffee Festival' },
-    { id: '2', date: '2024-01-15', amount: 8700, status: 'completed', event: 'Hawassa Music Festival' },
-    { id: '3', date: '2024-03-01', amount: 3400, status: 'pending', event: 'Gondar Traditional Dance' }
+  const [paymentHistory, setPaymentHistory] = useState([
+    { id: '1', date: '2024-02-15', amount: 1500, status: 'completed', method: 'Telebirr' },
+    { id: '2', date: '2024-01-15', amount: 1000, status: 'completed', method: 'Bank Transfer' }
   ]);
 
-  const handleChange = (e) => {
-    setFormData(prev => ({
-      ...prev,
-      [e.target.name]: e.target.value
-    }));
+  useEffect(() => {
+    fetchPaymentStats();
+  }, []);
+
+  const fetchPaymentStats = async () => {
+    setLoading(true);
+    try {
+      // Mock data - replace with API call
+      setStats({
+        total_fee_due: 5000,
+        total_paid: 2500,
+        pending_payment: 2500,
+        next_payment_date: '2024-04-15',
+        platform_fee_percentage: 10
+      });
+    } catch (error) {
+      console.error('Error fetching stats:', error);
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    
-    if (formData.bank_account_number !== formData.confirm_account_number) {
-      alert('Bank account numbers do not match!');
+  const handlePayment = async () => {
+    if (!paymentAmount || paymentAmount < 500) {
+      setError('Minimum payment amount is ETB 500');
       return;
     }
     
-    setSaving(true);
+    if (paymentAmount > stats.pending_payment) {
+      setError(`Amount exceeds pending balance of ETB ${stats.pending_payment}`);
+      return;
+    }
+    
+    setProcessing(true);
+    setError('');
+    
     try {
-      await new Promise(resolve => setTimeout(resolve, 1500));
-      alert('Payout information saved successfully! Your account will be verified within 2-3 business days.');
+      const response = await fetch(`${API_URL}/payments/platform-fee`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('authToken')}`
+        },
+        body: JSON.stringify({
+          amount: paymentAmount,
+          payment_method: paymentMethod
+        })
+      });
+      
+      const data = await response.json();
+      console.log('Payment response:', data);
+      
+      if (data.success && data.checkout_url) {
+        window.location.href = data.checkout_url;
+      } else {
+        setError(data.message || 'Payment failed. Please try again.');
+        setProcessing(false);
+      }
     } catch (error) {
-      alert('Failed to save payout information');
-    } finally {
-      setSaving(false);
+      console.error('Payment error:', error);
+      setError('Service error. Please try again.');
+      setProcessing(false);
     }
   };
 
   const getStatusBadge = (status) => {
     switch(status) {
       case 'completed':
-        return <span className="px-2 py-1 bg-green-100 text-green-700 rounded-full text-xs font-medium flex items-center gap-1"><CheckCircle className="size-3" /> Completed</span>;
+        return <span className="px-2 py-1 bg-green-100 text-green-700 rounded-full text-xs font-medium">Completed</span>;
       case 'pending':
         return <span className="px-2 py-1 bg-yellow-100 text-yellow-700 rounded-full text-xs font-medium">Pending</span>;
       default:
@@ -62,9 +107,16 @@ export function PayoutSettingsPage() {
     }
   };
 
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <Loader className="size-12 text-green-600 animate-spin" />
+      </div>
+    );
+  }
+
   return (
-    <div className="min-h-screen bg-gray-50 py-8 px-4">
-      {/* Ethiopian Tricolor Accent */}
+    <div className="min-h-screen bg-gradient-to-b from-gray-50 to-white py-8 px-4">
       <div className="fixed top-16 left-0 right-0 h-1 flex z-40">
         <div className="flex-1 bg-green-600" />
         <div className="flex-1 bg-yellow-400" />
@@ -72,305 +124,166 @@ export function PayoutSettingsPage() {
       </div>
 
       <div className="max-w-6xl mx-auto">
-        {/* Header */}
-        <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8">
-          <div>
-            <div className="flex items-center gap-3 mb-2">
-              <div className="w-12 h-12 bg-gradient-to-br from-green-600 via-yellow-500 to-red-600 rounded-2xl flex items-center justify-center shadow-md">
-                <Banknote className="size-6 text-white" />
-              </div>
-              <h1 className="text-3xl font-bold text-gray-900">Payout Settings</h1>
-            </div>
-            <p className="text-gray-600 ml-16">Manage your payment and withdrawal information</p>
+        <div className="text-center mb-8">
+          <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-br from-green-600 via-yellow-500 to-red-600 rounded-2xl shadow-lg mb-4">
+            <DollarSign className="size-8 text-white" />
           </div>
-          <Link 
-            to="/organizer/dashboard" 
-            className="mt-4 md:mt-0 px-6 py-2 bg-white border border-gray-300 text-gray-700 rounded-xl hover:bg-gray-50 transition"
-          >
-            Back to Dashboard
-          </Link>
-        </div>
-
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Bank Information Form */}
-          <div className="lg:col-span-2">
-            <div className="bg-white rounded-2xl shadow-sm p-6 border border-gray-100">
-              <div className="flex items-center justify-between mb-6">
-                <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2">
-                  <Building className="size-5 text-green-600" />
-                  Bank Account Information
-                </h2>
-                <button 
-                  onClick={() => setShowBankDetails(!showBankDetails)}
-                  className="text-sm text-gray-500 hover:text-gray-700 flex items-center gap-1"
-                >
-                  {showBankDetails ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
-                  {showBankDetails ? 'Hide' : 'Show'} Details
-                </button>
-              </div>
-
-              <form onSubmit={handleSubmit} className="space-y-5">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Account Holder Name *
-                  </label>
-                  <input
-                    type="text"
-                    name="bank_account_name"
-                    value={formData.bank_account_name}
-                    onChange={handleChange}
-                    required
-                    className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-green-500 focus:border-transparent"
-                    placeholder="As it appears on bank account"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Bank Name *
-                  </label>
-                  <input
-                    type="text"
-                    name="bank_name"
-                    value={formData.bank_name}
-                    onChange={handleChange}
-                    required
-                    className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-green-500 focus:border-transparent"
-                    placeholder="Commercial Bank of Ethiopia"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Bank Branch
-                  </label>
-                  <input
-                    type="text"
-                    name="bank_branch"
-                    value={formData.bank_branch}
-                    onChange={handleChange}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-green-500 focus:border-transparent"
-                    placeholder="Bole Branch"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Account Type
-                  </label>
-                  <select
-                    name="account_type"
-                    value={formData.account_type}
-                    onChange={handleChange}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-green-500 focus:border-transparent"
-                  >
-                    <option value="business">Business Account</option>
-                    <option value="personal">Personal Account</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Bank Account Number *
-                  </label>
-                  <input
-                    type={showBankDetails ? 'text' : 'password'}
-                    name="bank_account_number"
-                    value={formData.bank_account_number}
-                    onChange={handleChange}
-                    required
-                    className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-green-500 focus:border-transparent"
-                    placeholder="1000 1234 5678"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Confirm Account Number *
-                  </label>
-                  <input
-                    type={showBankDetails ? 'text' : 'password'}
-                    name="confirm_account_number"
-                    value={formData.confirm_account_number}
-                    onChange={handleChange}
-                    required
-                    className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-green-500 focus:border-transparent"
-                    placeholder="Re-enter account number"
-                  />
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      IBAN (if applicable)
-                    </label>
-                    <input
-                      type="text"
-                      name="iban"
-                      value={formData.iban}
-                      onChange={handleChange}
-                      className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-green-500 focus:border-transparent"
-                      placeholder="IBAN"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      SWIFT/BIC Code
-                    </label>
-                    <input
-                      type="text"
-                      name="swift_code"
-                      value={formData.swift_code}
-                      onChange={handleChange}
-                      className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-green-500 focus:border-transparent"
-                      placeholder="SWIFT/BIC"
-                    />
-                  </div>
-                </div>
-
-                <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
-                  <div className="flex items-start gap-3">
-                    <Shield className="size-5 text-blue-600 flex-shrink-0 mt-0.5" />
-                    <div className="text-sm text-blue-800">
-                      <p className="font-medium">Security Note</p>
-                      <p className="text-blue-700">Your bank information is encrypted and secure. We use bank-grade security to protect your financial data.</p>
-                    </div>
-                  </div>
-                </div>
-
-                <button
-                  type="submit"
-                  disabled={saving}
-                  className="w-full px-6 py-3 bg-gradient-to-r from-green-600 to-green-700 text-white rounded-xl font-semibold hover:from-green-700 hover:to-green-800 transition shadow-md disabled:opacity-50 flex items-center justify-center gap-2"
-                >
-                  {saving ? (
-                    <>
-                      <div className="animate-spin size-5 border-2 border-white border-t-transparent rounded-full" />
-                      Saving...
-                    </>
-                  ) : (
-                    <>
-                      <Save className="size-5" />
-                      Save Payout Information
-                    </>
-                  )}
-                </button>
-              </form>
-            </div>
-          </div>
-
-          {/* Right Sidebar - Payout Summary */}
-          <div className="lg:col-span-1 space-y-6">
-            {/* Payout Summary Card */}
-            <div className="bg-gradient-to-r from-green-600 to-green-700 rounded-2xl p-6 text-white">
-              <div className="flex items-center gap-2 mb-4">
-                <Wallet className="size-6" />
-                <h3 className="font-semibold">Total Earnings</h3>
-              </div>
-              <div className="text-3xl font-bold mb-2">ETB 24,600</div>
-              <p className="text-green-100 text-sm">Next payout: March 15, 2024</p>
-              <div className="mt-4 pt-4 border-t border-green-500">
-                <div className="flex justify-between text-sm">
-                  <span>Available for payout</span>
-                  <span className="font-semibold">ETB 3,400</span>
-                </div>
-              </div>
-            </div>
-
-            {/* Withdrawal Method Info */}
-            <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
-              <h3 className="font-semibold text-gray-900 mb-4 flex items-center gap-2">
-                <Smartphone className="size-5 text-green-600" />
-                Withdrawal Methods
-              </h3>
-              <div className="space-y-3">
-                <div className="flex items-center justify-between p-3 bg-gray-50 rounded-xl">
-                  <div className="flex items-center gap-2">
-                    <Building className="size-4 text-gray-500" />
-                    <span className="text-sm">Bank Transfer</span>
-                  </div>
-                  <span className="text-xs text-green-600">Primary</span>
-                </div>
-                <div className="flex items-center justify-between p-3 bg-gray-50 rounded-xl opacity-50">
-                  <div className="flex items-center gap-2">
-                    <Smartphone className="size-4 text-gray-500" />
-                    <span className="text-sm">Telebirr</span>
-                  </div>
-                  <span className="text-xs text-gray-400">Coming Soon</span>
-                </div>
-                <div className="flex items-center justify-between p-3 bg-gray-50 rounded-xl opacity-50">
-                  <div className="flex items-center gap-2">
-                    <CreditCard className="size-4 text-gray-500" />
-                    <span className="text-sm">CBE Birr</span>
-                  </div>
-                  <span className="text-xs text-gray-400">Coming Soon</span>
-                </div>
-              </div>
-            </div>
-
-            {/* Payout Schedule */}
-            <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
-              <h3 className="font-semibold text-gray-900 mb-4">Payout Schedule</h3>
-              <div className="space-y-2 text-sm">
-                <div className="flex justify-between">
-                  <span className="text-gray-600">Payout Frequency</span>
-                  <span className="font-medium">Monthly</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-600">Payout Day</span>
-                  <span className="font-medium">15th of each month</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-600">Minimum Payout</span>
-                  <span className="font-medium">ETB 500</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-600">Processing Time</span>
-                  <span className="font-medium">3-5 business days</span>
-                </div>
-              </div>
-            </div>
+          <h1 className="text-3xl font-bold text-gray-900 mb-2">Platform Fee Payment</h1>
+          <p className="text-gray-600">Pay your platform fees to continue hosting events</p>
+          <div className="mt-2 inline-flex items-center gap-2 px-3 py-1 bg-gray-100 rounded-full text-sm">
+            <Shield className="size-4 text-green-600" />
+            <span>Platform Fee: {stats.platform_fee_percentage}% of ticket sales</span>
           </div>
         </div>
 
-        {/* Payout History */}
-        <div className="mt-8">
-          <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
-            <div className="px-6 py-4 border-b border-gray-200">
-              <h2 className="text-xl font-bold text-gray-900">Payout History</h2>
+        {/* Stats Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+          <div className="bg-white rounded-2xl p-6 shadow-sm border-l-4 border-blue-500">
+            <p className="text-sm text-gray-600">Total Fee Due</p>
+            <p className="text-2xl font-bold text-gray-900">ETB {stats.total_fee_due.toLocaleString()}</p>
+          </div>
+          <div className="bg-white rounded-2xl p-6 shadow-sm border-l-4 border-green-500">
+            <p className="text-sm text-gray-600">Total Paid</p>
+            <p className="text-2xl font-bold text-green-600">ETB {stats.total_paid.toLocaleString()}</p>
+          </div>
+          <div className="bg-white rounded-2xl p-6 shadow-sm border-l-4 border-yellow-500">
+            <p className="text-sm text-gray-600">Pending Payment</p>
+            <p className="text-2xl font-bold text-yellow-600">ETB {stats.pending_payment.toLocaleString()}</p>
+          </div>
+          <div className="bg-white rounded-2xl p-6 shadow-sm border-l-4 border-purple-500">
+            <p className="text-sm text-gray-600">Next Payment Due</p>
+            <p className="text-2xl font-bold text-gray-900">{new Date(stats.next_payment_date).toLocaleDateString()}</p>
+          </div>
+        </div>
+
+        {/* Payment History */}
+        <div className="bg-white rounded-2xl shadow-sm overflow-hidden mb-8">
+          <div className="px-6 py-4 border-b">
+            <h2 className="text-xl font-bold text-gray-900">Payment History</h2>
+          </div>
+          {paymentHistory.length === 0 ? (
+            <div className="text-center py-12">
+              <Wallet className="size-12 text-gray-300 mx-auto mb-3" />
+              <p className="text-gray-500">No payment history yet</p>
             </div>
+          ) : (
             <div className="overflow-x-auto">
               <table className="w-full">
                 <thead className="bg-gray-50">
                   <tr>
-                    <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Date</th>
-                    <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Event</th>
-                    <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Amount</th>
-                    <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Status</th>
+                    <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700">Date</th>
+                    <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700">Amount</th>
+                    <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700">Method</th>
+                    <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700">Status</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-200">
-                  {payoutHistory.map((payout) => (
-                    <tr key={payout.id} className="hover:bg-gray-50">
-                      <td className="px-6 py-4 text-sm text-gray-900">{new Date(payout.date).toLocaleDateString()}</td>
-                      <td className="px-6 py-4 text-sm text-gray-700">{payout.event}</td>
-                      <td className="px-6 py-4 text-sm font-semibold text-gray-900">ETB {payout.amount.toLocaleString()}</td>
-                      <td className="px-6 py-4">{getStatusBadge(payout.status)}</td>
+                  {paymentHistory.map((payment) => (
+                    <tr key={payment.id} className="hover:bg-gray-50">
+                      <td className="px-6 py-4 text-sm text-gray-900">{new Date(payment.date).toLocaleDateString()}</td>
+                      <td className="px-6 py-4 text-sm font-semibold text-gray-900">ETB {payment.amount}</td>
+                      <td className="px-6 py-4 text-sm text-gray-700">{payment.method}</td>
+                      <td className="px-6 py-4">{getStatusBadge(payment.status)}</td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             </div>
-          </div>
+          )}
         </div>
 
-        {/* Help Section */}
-        <div className="mt-6 bg-gray-100 rounded-2xl p-4 text-center">
-          <p className="text-sm text-gray-600">
-            Need help with payouts? <Link to="/contact" className="text-green-600 font-medium hover:underline">Contact Support</Link>
-          </p>
+        {/* Pay Now Button */}
+        <div className="text-center">
+          <button 
+            onClick={() => setShowPaymentModal(true)} 
+            disabled={stats.pending_payment === 0}
+            className="px-8 py-4 bg-gradient-to-r from-green-600 to-green-700 text-white rounded-xl font-semibold hover:from-green-700 hover:to-green-800 transition shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            Pay Platform Fee
+          </button>
         </div>
       </div>
+
+      {/* Payment Modal */}
+      {showPaymentModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl max-w-md w-full p-6">
+            <div className="text-center mb-4">
+              <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-3">
+                <CreditCard className="size-8 text-green-600" />
+              </div>
+              <h2 className="text-xl font-bold text-gray-900">Pay Platform Fee</h2>
+              <p className="text-gray-500 text-sm">Pending amount: ETB {stats.pending_payment.toLocaleString()}</p>
+            </div>
+
+            {error && (
+              <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-xl text-red-600 text-sm text-center">
+                {error}
+              </div>
+            )}
+
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Amount (ETB)</label>
+                <input 
+                  type="number" 
+                  value={paymentAmount} 
+                  onChange={(e) => setPaymentAmount(e.target.value)} 
+                  placeholder={`Min: 500, Max: ${stats.pending_payment}`}
+                  className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-green-500"
+                />
+                <p className="text-xs text-gray-500 mt-1">Minimum payment: ETB 500</p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Payment Method</label>
+                <div className="flex gap-2">
+                  <button 
+                    onClick={() => setPaymentMethod('telebirr')} 
+                    className={`flex-1 p-3 border-2 rounded-xl text-center transition ${paymentMethod === 'telebirr' ? 'border-green-500 bg-green-50' : 'border-gray-200 hover:border-green-300'}`}
+                  >
+                    <Smartphone className="size-5 mx-auto mb-1" />
+                    <span className="text-xs">Telebirr</span>
+                  </button>
+                  <button 
+                    onClick={() => setPaymentMethod('cbe')} 
+                    className={`flex-1 p-3 border-2 rounded-xl text-center transition ${paymentMethod === 'cbe' ? 'border-green-500 bg-green-50' : 'border-gray-200 hover:border-green-300'}`}
+                  >
+                    <Building className="size-5 mx-auto mb-1" />
+                    <span className="text-xs">CBE Birr</span>
+                  </button>
+                  <button 
+                    onClick={() => setPaymentMethod('card')} 
+                    className={`flex-1 p-3 border-2 rounded-xl text-center transition ${paymentMethod === 'card' ? 'border-green-500 bg-green-50' : 'border-gray-200 hover:border-green-300'}`}
+                  >
+                    <CreditCard className="size-5 mx-auto mb-1" />
+                    <span className="text-xs">Card</span>
+                  </button>
+                </div>
+              </div>
+
+              <div className="bg-blue-50 rounded-xl p-3 flex items-start gap-2">
+                <Shield className="size-4 text-blue-600 mt-0.5" />
+                <p className="text-xs text-blue-700">Secure payment via Chapa. You will be redirected to complete payment.</p>
+              </div>
+
+              <div className="flex gap-3 pt-4">
+                <button onClick={() => setShowPaymentModal(false)} className="flex-1 px-4 py-2 border border-gray-300 rounded-xl text-gray-700 hover:bg-gray-50 transition">
+                  Cancel
+                </button>
+                <button 
+                  onClick={handlePayment} 
+                  disabled={processing} 
+                  className="flex-1 px-4 py-2 bg-gradient-to-r from-green-600 to-green-700 text-white rounded-xl font-semibold hover:from-green-700 hover:to-green-800 transition disabled:opacity-50 flex items-center justify-center gap-2"
+                >
+                  {processing ? <Loader className="size-5 animate-spin" /> : <ArrowRight className="size-5" />}
+                  {processing ? 'Processing...' : 'Pay Now'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

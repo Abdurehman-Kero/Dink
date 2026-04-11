@@ -10,7 +10,12 @@ const generateToken = (id) => {
 
 const register = async (req, res) => {
   try {
-    const { full_name, email, password, phone, user_name } = req.body;
+    const { 
+      full_name, email, password, phone, user_name, role,
+      organization_name, organization_type, website_url, bio,
+      tax_id_number, business_registration_number,
+      social_linkedin, social_instagram, social_x, work_email
+    } = req.body;
     
     // Check if user exists
     const [users] = await sequelize.query(
@@ -26,25 +31,67 @@ const register = async (req, res) => {
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(password, salt);
     
-    // Create user (role_id: 3 = attendee)
+    // Determine role and status
+    let roleId = 3; // attendee default
+    let status = 'active';
+    
+    if (role === 'organizer') {
+      roleId = 2;
+      status = 'pending'; // Organizers need admin approval
+    } else if (role === 'admin') {
+      roleId = 1;
+      status = 'active';
+    }
+    
+    // Create user
     await sequelize.query(
-      `INSERT INTO users (id, role_id, full_name, email, password_hash, phone, user_name, status) 
-       VALUES (REPLACE(UUID(), '-', ''), ?, ?, ?, ?, ?, ?, 'active')`,
-      { replacements: [3, full_name, email, hashedPassword, phone || null, user_name || email.split('@')[0]] }
+      `INSERT INTO users (id, role_id, full_name, email, password_hash, phone, user_name, status, email_verified) 
+       VALUES (REPLACE(UUID(), '-', ''), ?, ?, ?, ?, ?, ?, ?, true)`,
+      { replacements: [roleId, full_name, email, hashedPassword, phone || null, user_name || email.split('@')[0], status] }
     );
     
     // Get the created user
     const [newUser] = await sequelize.query(
-      'SELECT id, full_name, email, role_id FROM users WHERE email = ?',
+      'SELECT id, full_name, email, role_id, status FROM users WHERE email = ?',
       { replacements: [email] }
     );
     
-    const token = generateToken(newUser[0].id);
+    const userId = newUser[0].id;
     
+    // If organizer, create organizer profile
+    if (role === 'organizer') {
+      await sequelize.query(`
+        INSERT INTO organizer_profiles (
+          user_id, organization_name, organization_type, website_url, bio,
+          tax_id_number, business_registration_number, social_linkedin, 
+          social_instagram, social_x, work_email, verification_status, created_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', NOW())
+      `, { 
+        replacements: [
+          userId, organization_name, organization_type, website_url || null, bio,
+          tax_id_number || null, business_registration_number || null,
+          social_linkedin || null, social_instagram || null, social_x || null,
+          work_email || email
+        ] 
+      });
+    }
+    
+    // For attendees, return token immediately
+    if (role !== 'organizer') {
+      const token = generateToken(userId);
+      return res.status(201).json({
+        success: true,
+        token,
+        user: newUser[0]
+      });
+    }
+    
+    // For organizers, don't return token - they need approval
     res.status(201).json({
       success: true,
-      token,
-      user: newUser[0]
+      message: 'Registration successful! Your application is pending admin approval. You will receive an email once approved.',
+      user: newUser[0],
+      requiresApproval: true
     });
   } catch (error) {
     console.error(error);
@@ -67,6 +114,18 @@ const login = async (req, res) => {
     }
     
     const user = users[0];
+    
+    // Check if user is pending approval
+    if (user.status === 'pending') {
+      return res.status(401).json({ 
+        message: 'Your account is pending admin approval. You will receive an email once approved.',
+        requiresApproval: true 
+      });
+    }
+    
+    if (user.status === 'suspended') {
+      return res.status(401).json({ message: 'Your account has been suspended. Please contact support.' });
+    }
     
     // Check password
     const isPasswordValid = await bcrypt.compare(password, user.password_hash);

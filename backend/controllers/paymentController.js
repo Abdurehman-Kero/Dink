@@ -10,12 +10,8 @@ const initPayment = async (req, res) => {
     
     console.log('Payment init request:', { order_id, total_amount, user_email });
     
-    // Validate required fields
     if (!user_email) {
-      return res.status(400).json({ 
-        success: false, 
-        message: 'Email is required' 
-      });
+      return res.status(400).json({ success: false, message: 'Email is required' });
     }
     
     // Get user ID
@@ -25,10 +21,7 @@ const initPayment = async (req, res) => {
     );
     
     if (users.length === 0) {
-      return res.status(400).json({ 
-        success: false, 
-        message: 'User not found. Please login again.' 
-      });
+      return res.status(400).json({ success: false, message: 'User not found' });
     }
     
     // Generate unique transaction reference
@@ -39,9 +32,9 @@ const initPayment = async (req, res) => {
     const serviceFee = total_amount * 0.1;
     
     await sequelize.query(
-      `INSERT INTO orders (id, user_id, order_number, subtotal, service_fee, total_amount, status, created_at)
-       VALUES (REPLACE(UUID(), '-', ''), ?, ?, ?, ?, ?, 'pending', NOW())`,
-      { replacements: [userId, order_id, subtotal, serviceFee, total_amount] }
+      `INSERT INTO orders (id, user_id, order_number, subtotal, service_fee, total_amount, status, tx_ref, created_at)
+       VALUES (REPLACE(UUID(), '-', ''), ?, ?, ?, ?, ?, 'pending', ?, NOW())`,
+      { replacements: [userId, order_id, subtotal, serviceFee, total_amount, tx_ref] }
     );
     
     // Split name for Chapa
@@ -75,10 +68,7 @@ const initPayment = async (req, res) => {
     }
   } catch (error) {
     console.error('Init payment error:', error);
-    res.status(500).json({ 
-      success: false, 
-      message: error.message || 'Payment initialization failed' 
-    });
+    res.status(500).json({ success: false, message: error.message });
   }
 };
 
@@ -87,23 +77,26 @@ const verifyPayment = async (req, res) => {
   try {
     const { tx_ref } = req.query;
     
-    console.log('Verifying payment:', tx_ref);
+    console.log('Verifying payment for tx_ref:', tx_ref);
     
     if (!tx_ref) {
-      return res.status(400).json({ 
-        success: false, 
-        message: 'Transaction reference required' 
-      });
+      return res.status(400).json({ success: false, message: 'Transaction reference required' });
     }
     
-    // Check if it's a platform fee payment
-    if (tx_ref.startsWith('PLATFORM-')) {
-      const [payments] = await sequelize.query(
-        `SELECT * FROM platform_fee_payments WHERE tx_ref = ?`,
+    // Check in orders table first
+    let [orders] = await sequelize.query(
+      'SELECT * FROM orders WHERE tx_ref = ?',
+      { replacements: [tx_ref] }
+    );
+    
+    if (orders.length === 0) {
+      // Try platform fee payments
+      let [platformPayments] = await sequelize.query(
+        'SELECT * FROM platform_fee_payments WHERE tx_ref = ?',
         { replacements: [tx_ref] }
       );
       
-      if (payments.length === 0) {
+      if (platformPayments.length === 0) {
         return res.json({ 
           success: false, 
           status: 'not_found', 
@@ -111,7 +104,7 @@ const verifyPayment = async (req, res) => {
         });
       }
       
-      const payment = payments[0];
+      const payment = platformPayments[0];
       
       if (payment.status === 'completed') {
         return res.json({
@@ -144,27 +137,31 @@ const verifyPayment = async (req, res) => {
       });
     }
     
-    // Check ticket payment
-    const [orders] = await sequelize.query(
-      `SELECT * FROM orders WHERE order_number = ?`,
-      { replacements: [tx_ref] }
-    );
-    
-    if (orders.length === 0) {
-      return res.json({ 
-        success: false, 
-        status: 'not_found', 
-        message: 'Transaction not found' 
-      });
-    }
-    
     const order = orders[0];
     
     if (order.status === 'paid') {
       return res.json({
         success: true,
         status: 'completed',
-        message: 'Payment verified successfully'
+        message: 'Payment verified successfully',
+        order_number: order.order_number
+      });
+    }
+    
+    // Verify with Chapa
+    const verification = await chapaVerifyPayment(tx_ref);
+    
+    if (verification.success) {
+      await sequelize.query(
+        `UPDATE orders SET status = 'paid', paid_at = NOW() WHERE tx_ref = ?`,
+        { replacements: [tx_ref] }
+      );
+      
+      return res.json({
+        success: true,
+        status: 'completed',
+        message: 'Payment verified successfully',
+        order_number: order.order_number
       });
     }
     
@@ -175,10 +172,7 @@ const verifyPayment = async (req, res) => {
     });
   } catch (error) {
     console.error('Verify payment error:', error);
-    res.status(500).json({ 
-      success: false, 
-      message: error.message 
-    });
+    res.status(500).json({ success: false, message: error.message });
   }
 };
 

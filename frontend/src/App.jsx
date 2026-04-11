@@ -7,6 +7,8 @@ import { StaffDashboard } from "./pages/staff/StaffDashboard";
 
 import { LoginPage } from './pages/auth/LoginPage';
 import { SignupPage } from './pages/auth/SignupPage';
+import { OrganizerApprovals } from "./pages/admin/OrganizerApprovals";
+
 import { OrganizerSignupPage } from './pages/auth/OrganizerSignupPage';
 import { DiscoveryPage } from './pages/discovery/DiscoveryPage';
 import { EventDetailPage } from './pages/event/EventDetailPage';
@@ -52,6 +54,8 @@ function App() {
           <Route path="/admin/approvals" element={<AdminApprovalPage />} />
           <Route path="/staff/dashboard" element={<StaffDashboard />} />
           <Route path="/admin/users" element={<AdminManagement />} />
+          <Route path="/admin/approvals" element={<OrganizerApprovals />} />
+
           <Route path="/security/scanner" element={<SecurityScannerPage />} />
         </Routes>
       </main>

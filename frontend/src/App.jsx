@@ -4,11 +4,11 @@ import { Footer } from './components/common/Footer';
 import { FloatingCartButton } from './components/common/FloatingCartButton';
 import { LandingPage } from './pages/landing/LandingPage';
 import { StaffDashboard } from "./pages/staff/StaffDashboard";
-
+import { PaymentVerify } from "./pages/PaymentVerify";
 import { LoginPage } from './pages/auth/LoginPage';
 import { SignupPage } from './pages/auth/SignupPage';
 import { OrganizerApprovals } from "./pages/admin/OrganizerApprovals";
-
+import { PaymentSuccess } from "./pages/PaymentSuccess";
 import { OrganizerSignupPage } from './pages/auth/OrganizerSignupPage';
 import { DiscoveryPage } from './pages/discovery/DiscoveryPage';
 import { EventDetailPage } from './pages/event/EventDetailPage';
@@ -55,7 +55,8 @@ function App() {
           <Route path="/staff/dashboard" element={<StaffDashboard />} />
           <Route path="/admin/users" element={<AdminManagement />} />
           <Route path="/admin/approvals" element={<OrganizerApprovals />} />
-
+          <Route path="/payment/verify" element={<PaymentSuccess />} />
+          <Route path="/payment/success" element={<PaymentSuccess />} />
           <Route path="/security/scanner" element={<SecurityScannerPage />} />
         </Routes>
       </main>

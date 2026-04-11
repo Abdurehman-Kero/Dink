@@ -2,7 +2,12 @@ const { sequelize } = require('../config/database');
 const { initializePayment } = require('../services/chapaService');
 const crypto = require('crypto');
 
-// Initialize platform fee payment
+// Helper to validate email format
+const isValidEmail = (email) => {
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  return emailRegex.test(email);
+};
+
 const initPlatformFeePayment = async (req, res) => {
   try {
     const { amount, payment_method } = req.body;
@@ -18,9 +23,6 @@ const initPlatformFeePayment = async (req, res) => {
       });
     }
     
-    // Generate unique transaction reference
-    const tx_ref = `PLATFORM-${Date.now()}-${crypto.randomBytes(8).toString('hex')}`;
-    
     // Get user details
     const [users] = await sequelize.query(
       'SELECT email, full_name FROM users WHERE id = ?',
@@ -35,6 +37,16 @@ const initPlatformFeePayment = async (req, res) => {
     }
     
     const user = users[0];
+    
+    // Validate email format
+    if (!isValidEmail(user.email)) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Invalid email format. Please update your profile with a valid email address.' 
+      });
+    }
+    
+    const tx_ref = `PLATFORM-${Date.now()}-${crypto.randomBytes(8).toString('hex')}`;
     
     // Create table if not exists
     try {
@@ -55,60 +67,65 @@ const initPlatformFeePayment = async (req, res) => {
       console.log('Table creation skipped:', err.message);
     }
     
-    // Save payment request
     await sequelize.query(
       `INSERT INTO platform_fee_payments (id, user_id, amount, payment_method, status, tx_ref, created_at)
        VALUES (REPLACE(UUID(), '-', ''), ?, ?, ?, 'pending', ?, NOW())`,
       { replacements: [userId, amount, payment_method || 'telebirr', tx_ref] }
     );
     
-    // Split name for Chapa
     const nameParts = (user.full_name || 'Organizer User').split(' ');
     const first_name = nameParts[0];
     const last_name = nameParts.slice(1).join(' ') || 'User';
     
-    // Initialize Chapa payment with correct callback URL
+    // Ensure phone number is valid Ethiopian format
+    const phoneNumber = '0912345678';
+    
+    console.log('Initializing Chapa payment with:', {
+      amount,
+      email: user.email,
+      first_name,
+      last_name,
+      tx_ref
+    });
+    
     const paymentResult = await initializePayment({
       amount: amount,
       email: user.email,
       first_name: first_name,
       last_name: last_name,
-      phone_number: '0912345678',
+      phone_number: phoneNumber,
       tx_ref: tx_ref,
       title: 'DEMS Platform Fee',
-      description: `Platform fee payment of ETB ${amount}`,
-      callback_url: `${process.env.BACKEND_URL || 'http://localhost:5000'}/api/payments/platform-fee/callback`,
-      return_url: `${process.env.FRONTEND_URL || 'http://localhost:5173'}/payment/success?tx_ref=${tx_ref}`
+      description: `Platform fee payment of ETB ${amount}`
     });
     
     if (paymentResult.success && paymentResult.checkout_url) {
       console.log('Redirecting to Chapa:', paymentResult.checkout_url);
-      res.json({
+      return res.json({
         success: true,
         checkout_url: paymentResult.checkout_url,
         tx_ref: tx_ref
       });
     } else {
-      res.status(400).json({
+      console.error('Chapa payment initialization failed:', paymentResult.message);
+      return res.status(400).json({
         success: false,
-        message: paymentResult.message || 'Payment initialization failed'
+        message: paymentResult.message || 'Payment initialization failed. Please try again.'
       });
     }
   } catch (error) {
     console.error('Init platform fee error:', error);
-    res.status(500).json({ 
+    return res.status(500).json({ 
       success: false, 
       message: error.message || 'Internal server error' 
     });
   }
 };
 
-// Verify platform fee payment (Chapa callback)
 const verifyPlatformFeePayment = async (req, res) => {
   try {
     const { tx_ref, status } = req.body;
-    
-    console.log('Platform fee callback received:', { tx_ref, status });
+    console.log('Platform fee callback:', { tx_ref, status });
     
     if (status === 'success') {
       await sequelize.query(
@@ -124,7 +141,6 @@ const verifyPlatformFeePayment = async (req, res) => {
   }
 };
 
-// Get platform fee payment history
 const getPlatformFeeHistory = async (req, res) => {
   try {
     const userId = req.user.id;

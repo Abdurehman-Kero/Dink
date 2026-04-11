@@ -1,6 +1,6 @@
 const { sequelize } = require('../config/database');
 
-// Get all events
+// Get all events (public)
 const getEvents = async (req, res) => {
   try {
     const [events] = await sequelize.query(`
@@ -14,6 +14,29 @@ const getEvents = async (req, res) => {
   } catch (error) {
     console.error('Get events error:', error);
     res.status(500).json({ message: 'Server error' });
+  }
+};
+
+// Get events by organizer (for organizer dashboard)
+const getEventsByOrganizer = async (req, res) => {
+  try {
+    const organizerId = req.user.id;
+    console.log('=== getEventsByOrganizer called ===');
+    console.log('Organizer ID from token:', organizerId);
+    
+    const [events] = await sequelize.query(`
+      SELECT e.*, ec.name as category_name 
+      FROM events e
+      LEFT JOIN event_categories ec ON e.category_id = ec.id
+      WHERE e.organizer_id = ?
+      ORDER BY e.created_at DESC
+    `, { replacements: [organizerId] });
+    
+    console.log(`Found ${events.length} events for organizer ${organizerId}`);
+    res.json({ success: true, events });
+  } catch (error) {
+    console.error('Get events by organizer error:', error);
+    res.status(500).json({ message: 'Server error', error: error.message });
   }
 };
 
@@ -53,10 +76,11 @@ const createEvent = async (req, res) => {
       address_line1, ticket_types 
     } = req.body;
     
-    console.log('Creating event for user:', req.user.id);
+    const organizerId = req.user.id;
+    console.log('Creating event for organizer:', organizerId);
     
-    // Insert event using MySQL UUID
-    const [result] = await sequelize.query(`
+    // Insert event
+    await sequelize.query(`
       INSERT INTO events (
         id, organizer_id, title, category_id, event_type, 
         description, start_datetime, end_datetime, city, 
@@ -66,7 +90,7 @@ const createEvent = async (req, res) => {
       )
     `, { 
       replacements: [
-        req.user.id, title, category_id, event_type, 
+        organizerId, title, category_id, event_type, 
         description, start_datetime, end_datetime, city, 
         venue_name, address_line1
       ] 
@@ -75,10 +99,10 @@ const createEvent = async (req, res) => {
     // Get the created event ID
     const [newEvent] = await sequelize.query(
       'SELECT id FROM events WHERE organizer_id = ? ORDER BY created_at DESC LIMIT 1',
-      { replacements: [req.user.id] }
+      { replacements: [organizerId] }
     );
     
-    const eventId = newEvent[0].id;
+    const eventId = newEvent[0]?.id;
     console.log('Event created with ID:', eventId);
     
     // Insert ticket types if provided
@@ -99,7 +123,6 @@ const createEvent = async (req, res) => {
               ticket.benefits || ''
             ] 
           });
-          console.log('Added ticket type:', ticket.tier_name);
         }
       }
     }
@@ -195,6 +218,7 @@ const getFeaturedEvents = async (req, res) => {
 
 module.exports = {
   getEvents,
+  getEventsByOrganizer,
   getEventById,
   createEvent,
   updateEvent,

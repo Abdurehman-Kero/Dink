@@ -73,26 +73,27 @@ const createEvent = async (req, res) => {
     const { 
       title, category_id, event_type, description, 
       start_datetime, end_datetime, city, venue_name, 
-      address_line1, ticket_types 
+      address_line1, banner_url, ticket_types 
     } = req.body;
     
     const organizerId = req.user.id;
     console.log('Creating event for organizer:', organizerId);
+    console.log('Banner URL:', banner_url);
     
     // Insert event
     await sequelize.query(`
       INSERT INTO events (
         id, organizer_id, title, category_id, event_type, 
         description, start_datetime, end_datetime, city, 
-        venue_name, address_line1, status, created_at
+        venue_name, address_line1, banner_url, status, created_at
       ) VALUES (
-        REPLACE(UUID(), '-', ''), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'published', NOW()
+        REPLACE(UUID(), '-', ''), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'published', NOW()
       )
     `, { 
       replacements: [
         organizerId, title, category_id, event_type, 
         description, start_datetime, end_datetime, city, 
-        venue_name, address_line1
+        venue_name, address_line1, banner_url || null
       ] 
     });
     
@@ -154,14 +155,14 @@ const updateEvent = async (req, res) => {
       return res.status(403).json({ message: 'Not authorized' });
     }
     
-    const { title, description, start_datetime, end_datetime, city, venue_name, address_line1 } = req.body;
+    const { title, description, start_datetime, end_datetime, city, venue_name, address_line1, banner_url } = req.body;
     
     await sequelize.query(`
       UPDATE events 
       SET title = ?, description = ?, start_datetime = ?, end_datetime = ?, 
-          city = ?, venue_name = ?, address_line1 = ?, updated_at = NOW()
+          city = ?, venue_name = ?, address_line1 = ?, banner_url = ?, updated_at = NOW()
       WHERE id = ?
-    `, { replacements: [title, description, start_datetime, end_datetime, city, venue_name, address_line1, eventId] });
+    `, { replacements: [title, description, start_datetime, end_datetime, city, venue_name, address_line1, banner_url, eventId] });
     
     res.json({ success: true, message: 'Event updated successfully' });
   } catch (error) {

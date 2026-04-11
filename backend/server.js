@@ -40,7 +40,10 @@ app.get('/health', (req, res) => {
     timestamp: new Date().toISOString()
   });
 });
-
+const notificationRoutes = require('./routes/notificationRoutes');
+app.use('/api/notifications', notificationRoutes);
+const reviewRoutes = require('./routes/reviewRoutes');
+app.use('/api/reviews', reviewRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/events', eventRoutes);
 app.use('/api/staff', staffRoutes);

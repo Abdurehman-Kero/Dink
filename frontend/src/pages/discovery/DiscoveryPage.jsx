@@ -24,10 +24,10 @@ export function DiscoveryPage() {
 
   const categories = [
     { id: 'all', name: 'All Events', icon: Coffee },
-    { id: 'music', name: 'Music', icon: Music },
-    { id: 'cultural', name: 'Cultural', icon: Palette },
-    { id: 'business', name: 'Business', icon: Briefcase },
-    { id: 'educational', name: 'Educational', icon: GraduationCap }
+    { id: 'Music', name: 'Music', icon: Music },
+    { id: 'Cultural', name: 'Cultural', icon: Palette },
+    { id: 'Business', name: 'Business', icon: Briefcase },
+    { id: 'Educational', name: 'Educational', icon: GraduationCap }
   ];
 
   const ethiopianCities = [
@@ -58,33 +58,27 @@ export function DiscoveryPage() {
   useEffect(() => {
     let filtered = [...events];
 
-    // Apply search
     if (searchQuery) {
       filtered = filtered.filter(event => 
-        event.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        (event.category_name && event.category_name.toLowerCase().includes(searchQuery.toLowerCase())) ||
-        (event.city && event.city.toLowerCase().includes(searchQuery.toLowerCase()))
+        event.title?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        event.category_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        event.city?.toLowerCase().includes(searchQuery.toLowerCase())
       );
     }
 
-    // Apply category filter
     if (selectedCategory && selectedCategory !== 'all') {
-      filtered = filtered.filter(event => 
-        event.category_name?.toLowerCase() === selectedCategory.toLowerCase()
-      );
+      filtered = filtered.filter(event => event.category_name === selectedCategory);
     }
 
-    // Apply city filter
     if (selectedCity) {
       filtered = filtered.filter(event => event.city === selectedCity);
     }
 
-    // Apply price filter
     if (priceRange.min) {
-      filtered = filtered.filter(event => (event.min_price || 0) >= priceRange.min);
+      filtered = filtered.filter(event => (event.min_price || 0) >= Number(priceRange.min));
     }
     if (priceRange.max) {
-      filtered = filtered.filter(event => (event.min_price || 0) <= priceRange.max);
+      filtered = filtered.filter(event => (event.min_price || 0) <= Number(priceRange.max));
     }
 
     setFilteredEvents(filtered);
@@ -125,20 +119,17 @@ export function DiscoveryPage() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Ethiopian Tricolor Accent */}
       <div className="fixed top-16 left-0 right-0 h-1 flex z-40">
         <div className="flex-1 bg-green-600" />
         <div className="flex-1 bg-yellow-400" />
         <div className="flex-1 bg-red-600" />
       </div>
 
-      {/* Hero Banner */}
       <div className="relative bg-gradient-to-r from-gray-900 via-gray-800 to-gray-900 text-white py-12 px-6">
         <div className="max-w-7xl mx-auto">
           <h1 className="text-3xl md:text-4xl font-bold mb-3">Discover Amazing Events</h1>
           <p className="text-lg text-gray-300 mb-6">Find and book tickets for the best events across Ethiopia</p>
           
-          {/* Search Bar */}
           <div className="relative max-w-2xl">
             <Search className="absolute left-4 top-1/2 -translate-y-1/2 size-5 text-gray-400" />
             <input
@@ -152,19 +143,18 @@ export function DiscoveryPage() {
         </div>
       </div>
 
-      {/* Interactive Map Section */}
-      <div className="max-w-7xl mx-auto px-4 py-8">
-        <EventMap 
-          events={filteredEvents} 
-          selectedEvent={selectedMapEvent}
-          onEventSelect={setSelectedMapEvent}
-          height="450px"
-        />
-      </div>
+      {filteredEvents.length > 0 && (
+        <div className="max-w-7xl mx-auto px-4 py-8">
+          <EventMap 
+            events={filteredEvents} 
+            selectedEvent={selectedMapEvent}
+            onEventSelect={setSelectedMapEvent}
+            height="450px"
+          />
+        </div>
+      )}
 
-      {/* Main Content */}
       <div className="max-w-7xl mx-auto px-4 py-8">
-        {/* Category Chips */}
         <div className="flex flex-wrap gap-2 mb-6">
           {categories.map((cat) => (
             <button
@@ -182,10 +172,9 @@ export function DiscoveryPage() {
           ))}
         </div>
 
-        {/* Toolbar */}
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
           <p className="text-gray-600">
-            Found <span className="font-semibold text-gray-900">{filteredEvents.length}</span> events
+            Found <span className="font-semibold text-gray-900">{filteredEvents.length}</span> {filteredEvents.length === 1 ? 'event' : 'events'}
           </p>
           <div className="flex items-center gap-3">
             <button
@@ -215,7 +204,6 @@ export function DiscoveryPage() {
           </div>
         </div>
 
-        {/* Filters Panel */}
         {showFilters && (
           <div className="bg-white rounded-2xl p-5 mb-6 shadow-sm border border-gray-100">
             <div className="flex justify-between items-center mb-4">
@@ -269,7 +257,6 @@ export function DiscoveryPage() {
           </div>
         )}
 
-        {/* Events Grid/List */}
         {currentEvents.length > 0 ? (
           <>
             <div className={`grid ${viewMode === 'grid' ? 'grid-cols-1 md:grid-cols-2 lg:grid-cols-3' : 'grid-cols-1'} gap-6`}>
@@ -278,7 +265,6 @@ export function DiscoveryPage() {
               ))}
             </div>
 
-            {/* Pagination */}
             {totalPages > 1 && (
               <div className="flex items-center justify-center gap-2 mt-8">
                 <button 
@@ -325,13 +311,15 @@ export function DiscoveryPage() {
   );
 }
 
-// Event Card Component
+// Event Card Component with clickable banner image
 function EventCard({ event, formatDate }) {
   const [isSaved, setIsSaved] = useState(false);
+  const isTrending = event.is_trending === true || event.is_trending === 1;
 
   return (
     <div className="group bg-white rounded-xl overflow-hidden shadow-md hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1">
-      <div className="relative h-48 overflow-hidden">
+      {/* Clickable banner image - now links to event detail */}
+      <Link to={`/event/${event.id}`} className="block relative h-48 overflow-hidden cursor-pointer">
         <img 
           src={event.banner_url || 'https://images.unsplash.com/photo-1540575467063-178a50c2df87'} 
           alt={event.title}
@@ -342,15 +330,19 @@ function EventCard({ event, formatDate }) {
           {event.category_name || 'Event'}
         </span>
         <button 
-          onClick={() => setIsSaved(!isSaved)}
-          className="absolute top-3 right-3 p-2 bg-white/90 backdrop-blur-sm rounded-full hover:bg-red-50 transition"
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            setIsSaved(!isSaved);
+          }}
+          className="absolute top-3 right-3 p-2 bg-white/90 backdrop-blur-sm rounded-full hover:bg-red-50 transition z-10"
         >
           <Heart className={`size-4 ${isSaved ? 'fill-red-500 text-red-500' : 'text-gray-600'}`} />
         </button>
         <div className="absolute bottom-3 right-3 px-2 py-1 bg-green-600 text-white text-xs font-bold rounded-lg">
           ETB {event.ticket_types?.[0]?.price || event.min_price || 250}+
         </div>
-      </div>
+      </Link>
       
       <div className="p-4">
         <Link to={`/event/${event.id}`}>
@@ -371,7 +363,7 @@ function EventCard({ event, formatDate }) {
         </div>
         
         <div className="mt-3 pt-2 border-t border-gray-100 flex items-center justify-between">
-          {event.is_trending && (
+          {isTrending && (
             <div className="flex items-center gap-1 text-xs text-orange-500">
               <TrendingUp className="size-3" />
               <span>Trending</span>
@@ -379,7 +371,7 @@ function EventCard({ event, formatDate }) {
           )}
           <Link 
             to={`/event/${event.id}`}
-            className="ml-auto px-3 py-1.5 bg-gradient-to-r from-green-600 to-green-700 text-white text-xs font-medium rounded-lg hover:from-green-700 hover:to-green-800 transition-all"
+            className={`px-3 py-1.5 bg-gradient-to-r from-green-600 to-green-700 text-white text-xs font-medium rounded-lg hover:from-green-700 hover:to-green-800 transition-all ${!isTrending ? 'ml-auto' : ''}`}
           >
             Get Tickets
           </Link>

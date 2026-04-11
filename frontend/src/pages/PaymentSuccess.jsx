@@ -16,12 +16,11 @@ export function PaymentSuccess() {
   useEffect(() => {
     const tx_ref = searchParams.get('tx_ref');
     
-    console.log('Payment success page loaded:', { tx_ref });
+    console.log('Payment success page - tx_ref:', tx_ref);
     
     if (!tx_ref) {
       setErrorMessage('No transaction reference found');
       setVerifying(false);
-      setSuccess(false);
       return;
     }
     
@@ -30,7 +29,7 @@ export function PaymentSuccess() {
 
   const verifyPayment = async (tx_ref) => {
     try {
-      console.log('Verifying payment for tx_ref:', tx_ref);
+      console.log('Verifying payment with backend:', tx_ref);
       
       const response = await fetch(`${API_URL}/payments/verify?tx_ref=${tx_ref}`);
       const data = await response.json();
@@ -39,30 +38,44 @@ export function PaymentSuccess() {
       
       if (data.success && data.status === 'completed') {
         setSuccess(true);
-        setOrderNumber(data.order_number || 'N/A');
+        setOrderNumber(data.order_number || tx_ref);
         
         // Create purchased tickets from cart
         const savedCart = localStorage.getItem('checkoutReservations');
         console.log('Saved cart:', savedCart);
         
         if (savedCart) {
-          const cartItems = JSON.parse(savedCart);
-          const purchasedTickets = cartItems.map(item => ({
-            id: `ticket_${Date.now()}_${item.event_id}`,
-            event: item.event,
-            ticket_type: item.ticket_type,
-            quantity: item.quantity,
-            ticket_code: `DEMS-${Math.random().toString(36).substr(2, 10).toUpperCase()}`,
-            purchase_date: new Date().toISOString(),
-            status: 'active'
-          }));
-          
-          setTickets(purchasedTickets);
-          
-          const existingTickets = JSON.parse(localStorage.getItem('purchasedTickets') || '[]');
-          localStorage.setItem('purchasedTickets', JSON.stringify([...existingTickets, ...purchasedTickets]));
-          localStorage.removeItem('checkoutReservations');
-          console.log('Tickets saved:', purchasedTickets.length);
+          try {
+            const cartItems = JSON.parse(savedCart);
+            if (Array.isArray(cartItems) && cartItems.length > 0) {
+              const purchasedTickets = cartItems.map((item, index) => ({
+                id: `ticket_${Date.now()}_${index}`,
+                event: {
+                  id: item.event?.id || 'unknown',
+                  title: item.event?.title || 'Event Ticket',
+                  image_url: item.event?.image_url || 'https://images.unsplash.com/photo-1540575467063-178a50c2df87',
+                  location: item.event?.location || 'Addis Ababa'
+                },
+                ticket_type: {
+                  tier_name: item.ticket_type?.tier_name || 'General Admission'
+                },
+                quantity: item.quantity || 1,
+                ticket_code: `DEMS-${Math.random().toString(36).substring(2, 12).toUpperCase()}`,
+                purchase_date: new Date().toISOString()
+              }));
+              
+              setTickets(purchasedTickets);
+              
+              const existingTickets = localStorage.getItem('purchasedTickets');
+              const existing = existingTickets ? JSON.parse(existingTickets) : [];
+              localStorage.setItem('purchasedTickets', JSON.stringify([...existing, ...purchasedTickets]));
+              localStorage.removeItem('checkoutReservations');
+              
+              console.log('Tickets saved:', purchasedTickets.length);
+            }
+          } catch (err) {
+            console.error('Error parsing cart:', err);
+          }
         }
       } else {
         setSuccess(false);
@@ -79,23 +92,48 @@ export function PaymentSuccess() {
 
   const downloadTicket = (ticket) => {
     const printWindow = window.open('', '_blank');
+    if (!printWindow) return;
+    
+    const eventTitle = ticket.event?.title || 'Event Ticket';
+    const ticketType = ticket.ticket_type?.tier_name || 'General';
+    
     printWindow.document.write(`
+      <!DOCTYPE html>
       <html>
-      <head><title>${ticket.event.title} - Ticket</title>
-      <style>
-        body{font-family:Arial;padding:40px}
-        .ticket{border:2px solid #10b981;border-radius:12px;padding:20px;max-width:500px;margin:0 auto}
-        .qr{text-align:center;margin:20px}
-        .header{text-align:center;border-bottom:2px dashed #ccc;padding-bottom:20px}
-        .footer{text-align:center;font-size:12px;color:#666;margin-top:20px}
-      </style>
+      <head>
+        <title>${eventTitle} - Ticket</title>
+        <style>
+          body { font-family: Arial, sans-serif; padding: 40px; }
+          .ticket { border: 2px solid #10b981; border-radius: 12px; padding: 20px; max-width: 500px; margin: 0 auto; }
+          .header { text-align: center; border-bottom: 2px dashed #ccc; padding-bottom: 20px; }
+          .qr { text-align: center; margin: 20px 0; }
+          .details { margin: 20px 0; }
+          .footer { text-align: center; font-size: 12px; color: #666; margin-top: 20px; }
+        </style>
       </head>
       <body>
         <div class="ticket">
-          <div class="header"><h2>DEMS Digital Ticket</h2><p>${ticket.event.title}</p></div>
-          <div class="qr"><div style="display:inline-block;padding:10px;background:#f0f0f0"><div style="width:150px;height:150px;background:#000;color:#fff;display:flex;align-items:center;justify-content:center">QR: ${ticket.ticket_code}</div></div></div>
-          <div><p><strong>Date:</strong> ${new Date(ticket.purchase_date).toLocaleDateString()}</p><p><strong>Ticket Type:</strong> ${ticket.ticket_type.tier_name}</p><p><strong>Quantity:</strong> ${ticket.quantity}</p><p><strong>Ticket Code:</strong> ${ticket.ticket_code}</p></div>
-          <div class="footer"><p>Scan this QR code at the event entrance</p><p>© DEMS Event Platform</p></div>
+          <div class="header">
+            <h2>DEMS Digital Ticket</h2>
+          </div>
+          <div class="qr">
+            <div style="display: inline-block; padding: 10px; background: #f0f0f0;">
+              <div style="width: 150px; height: 150px; background: #000; color: #fff; display: flex; align-items: center; justify-content: center;">
+                QR: ${ticket.ticket_code}
+              </div>
+            </div>
+          </div>
+          <div class="details">
+            <p><strong>Event:</strong> ${eventTitle}</p>
+            <p><strong>Ticket Type:</strong> ${ticketType}</p>
+            <p><strong>Quantity:</strong> ${ticket.quantity}</p>
+            <p><strong>Ticket Code:</strong> ${ticket.ticket_code}</p>
+            <p><strong>Purchase Date:</strong> ${new Date(ticket.purchase_date).toLocaleDateString()}</p>
+          </div>
+          <div class="footer">
+            <p>Scan this QR code at the event entrance</p>
+            <p>© DEMS Event Platform</p>
+          </div>
         </div>
       </body>
       </html>
@@ -129,7 +167,7 @@ export function PaymentSuccess() {
             </div>
             <h1 className="text-3xl font-bold text-gray-900 mb-2">Payment Successful!</h1>
             <p className="text-gray-600">Your tickets have been saved to your account.</p>
-            <p className="text-sm text-gray-500 mt-2">Order Number: {orderNumber}</p>
+            <p className="text-sm text-gray-500 mt-2">Reference: {orderNumber}</p>
             
             {tickets.length > 0 && (
               <button 
@@ -146,31 +184,46 @@ export function PaymentSuccess() {
               {tickets.map((ticket) => (
                 <div key={ticket.id} className="bg-white rounded-2xl shadow-lg overflow-hidden">
                   <div className="relative h-40 overflow-hidden">
-                    <img src={ticket.event.image_url || 'https://images.unsplash.com/photo-1540575467063-178a50c2df87'} alt={ticket.event.title} className="w-full h-full object-cover" />
+                    <img 
+                      src={ticket.event.image_url} 
+                      alt={ticket.event.title} 
+                      className="w-full h-full object-cover" 
+                    />
                     <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
                     <span className="absolute top-4 right-4 px-3 py-1 bg-green-500 text-white text-xs font-semibold rounded-full">Valid</span>
                   </div>
                   <div className="p-5">
-                    <h3 className="font-bold text-lg text-gray-900 mb-2">{ticket.event.title?.split('|')[0]}</h3>
+                    <h3 className="font-bold text-lg text-gray-900 mb-2">{ticket.event.title}</h3>
                     <div className="bg-gray-50 rounded-xl p-4 mb-4">
-                      <div className="flex justify-between mb-2"><span className="text-sm text-gray-600">Ticket Type</span><span className="font-semibold">{ticket.ticket_type.tier_name}</span></div>
-                      <div className="flex justify-between"><span className="text-sm text-gray-600">Quantity</span><span className="font-semibold">×{ticket.quantity}</span></div>
-                      <div className="mt-3 pt-3 border-t"><code className="text-xs font-mono bg-gray-200 px-2 py-1 rounded">{ticket.ticket_code}</code></div>
+                      <div className="flex justify-between mb-2">
+                        <span className="text-sm text-gray-600">Ticket Type</span>
+                        <span className="font-semibold">{ticket.ticket_type.tier_name}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-sm text-gray-600">Quantity</span>
+                        <span className="font-semibold">×{ticket.quantity}</span>
+                      </div>
+                      <div className="mt-3 pt-3 border-t">
+                        <code className="text-xs font-mono bg-gray-200 px-2 py-1 rounded">{ticket.ticket_code}</code>
+                      </div>
                     </div>
                     <div className="bg-gradient-to-r from-green-50 to-yellow-50 rounded-xl p-4 mb-4 border">
                       <div className="flex items-center gap-4">
                         <div className="w-20 h-20 bg-white rounded-lg shadow-md flex items-center justify-center">
                           <Ticket className="size-10 text-gray-800" />
                         </div>
-                        <div><p className="text-xs text-gray-600 mb-1">Scan this QR code at the event entrance</p><p className="text-xs font-mono text-green-600">{ticket.ticket_code}</p></div>
+                        <div>
+                          <p className="text-xs text-gray-600 mb-1">Scan this QR code at the event entrance</p>
+                          <p className="text-xs font-mono text-green-600">{ticket.ticket_code}</p>
+                        </div>
                       </div>
                     </div>
                     <div className="flex gap-3">
                       <button onClick={() => downloadTicket(ticket)} className="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg flex items-center justify-center gap-2 hover:bg-green-700 transition">
                         <Download className="size-4" /> Download
                       </button>
-                      <button onClick={() => navigate(`/event/${ticket.event.id}`)} className="flex-1 px-4 py-2 border border-green-600 text-green-600 rounded-lg hover:bg-green-50 transition">
-                        View Event
+                      <button onClick={() => navigate('/discover')} className="flex-1 px-4 py-2 border border-green-600 text-green-600 rounded-lg hover:bg-green-50 transition">
+                        Browse More
                       </button>
                     </div>
                   </div>

@@ -1,12 +1,16 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Calendar, MapPin, Clock, DollarSign, ImageIcon, ArrowLeft, Upload, X, Ticket } from 'lucide-react';
+import { Calendar, MapPin, Clock, DollarSign, ImageIcon, ArrowLeft, Upload, X, Ticket, Link as LinkIcon } from 'lucide-react';
 import { eventAPI } from '../../api/client';
+import { useAuth } from '../../contexts/AuthContext';
 
 export function CreateEventPage() {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [loading, setLoading] = useState(false);
   const [bannerPreview, setBannerPreview] = useState(null);
+  const [imageSource, setImageSource] = useState('url');
+  const [imageUrl, setImageUrl] = useState('');
   const [formData, setFormData] = useState({
     title: '',
     category_id: '',
@@ -17,6 +21,7 @@ export function CreateEventPage() {
     venue_name: '',
     address_line1: '',
     city: 'Addis Ababa',
+    banner_url: '',
     ticket_types: [
       { tier_name: 'Normal', price: '', capacity: '', benefits: 'Standard entry' },
       { tier_name: 'VIP', price: '', capacity: '', benefits: 'Priority entry, VIP seating' },
@@ -24,7 +29,6 @@ export function CreateEventPage() {
     ]
   });
 
-  // Correct category IDs from your database
   const categories = [
     { id: 'bafdcaba34a111f1adcc002b673858b6', name: 'Technology' },
     { id: 'bafdcadd34a111f1adcc002b673858b6', name: 'Music' },
@@ -44,10 +48,21 @@ export function CreateEventPage() {
     setFormData(prev => ({ ...prev, ticket_types: updatedTickets }));
   };
 
-  const handleBannerChange = (e) => {
+  const handleImageUrlChange = (e) => {
+    const url = e.target.value;
+    setImageUrl(url);
+    setBannerPreview(url);
+    setFormData(prev => ({ ...prev, banner_url: url }));
+    console.log('Banner URL set to:', url);
+  };
+
+  const handleImageUpload = (e) => {
     const file = e.target.files?.[0];
     if (file) {
-      setBannerPreview(URL.createObjectURL(file));
+      const localUrl = URL.createObjectURL(file);
+      setBannerPreview(localUrl);
+      setFormData(prev => ({ ...prev, banner_url: localUrl }));
+      console.log('Banner image set to local URL:', localUrl);
     }
   };
 
@@ -55,9 +70,9 @@ export function CreateEventPage() {
     e.preventDefault();
     setLoading(true);
 
-    // Validate category is selected
-    if (!formData.category_id) {
-      alert('Please select a category');
+    // Validate banner URL
+    if (!formData.banner_url) {
+      alert('Please add a banner image (URL or upload)');
       setLoading(false);
       return;
     }
@@ -74,6 +89,7 @@ export function CreateEventPage() {
       city: formData.city,
       venue_name: formData.venue_name,
       address_line1: formData.address_line1,
+      banner_url: formData.banner_url,
       ticket_types: validTicketTypes.map(t => ({
         tier_name: t.tier_name,
         price: parseFloat(t.price),
@@ -83,13 +99,18 @@ export function CreateEventPage() {
       }))
     };
 
+    console.log('Submitting event data:', eventData);
+
     try {
       const response = await eventAPI.create(eventData);
       if (response.success) {
         alert('Event created successfully!');
         navigate('/organizer/dashboard');
+      } else {
+        alert(response.message || 'Failed to create event');
       }
     } catch (error) {
+      console.error('Create event error:', error);
       alert(error.message || 'Failed to create event');
     } finally {
       setLoading(false);
@@ -128,20 +149,20 @@ export function CreateEventPage() {
             <div className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Event Title *</label>
-                <input type="text" name="title" value={formData.title} onChange={handleChange} required className="w-full px-4 py-3 border border-gray-300 rounded-xl" placeholder="e.g., Ethiopian Coffee Festival" />
+                <input type="text" name="title" value={formData.title} onChange={handleChange} required className="w-full px-4 py-3 border rounded-xl" placeholder="e.g., Ethiopian Coffee Festival" />
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Category *</label>
-                  <select name="category_id" value={formData.category_id} onChange={handleChange} required className="w-full px-4 py-3 border border-gray-300 rounded-xl">
+                  <select name="category_id" value={formData.category_id} onChange={handleChange} required className="w-full px-4 py-3 border rounded-xl">
                     <option value="">Select category</option>
                     {categories.map(cat => <option key={cat.id} value={cat.id}>{cat.name}</option>)}
                   </select>
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Event Type</label>
-                  <select name="event_type" value={formData.event_type} onChange={handleChange} className="w-full px-4 py-3 border border-gray-300 rounded-xl">
+                  <select name="event_type" value={formData.event_type} onChange={handleChange} className="w-full px-4 py-3 border rounded-xl">
                     <option value="festival">Festival</option>
                     <option value="conference">Conference</option>
                     <option value="concert">Concert</option>
@@ -153,50 +174,96 @@ export function CreateEventPage() {
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Description *</label>
-                <textarea name="description" value={formData.description} onChange={handleChange} required rows={5} className="w-full px-4 py-3 border border-gray-300 rounded-xl" />
+                <textarea name="description" value={formData.description} onChange={handleChange} required rows={5} className="w-full px-4 py-3 border rounded-xl" />
               </div>
             </div>
           </div>
 
+          {/* Banner Image */}
           <div>
             <h2 className="text-xl font-semibold text-gray-900 mb-4 flex items-center gap-2">
-              <ImageIcon className="size-5 text-green-600" /> Banner Image
+              <ImageIcon className="size-5 text-green-600" /> Banner Image *
             </h2>
-            {!bannerPreview ? (
-              <label className="flex flex-col items-center justify-center w-full h-48 border-2 border-gray-300 border-dashed rounded-xl cursor-pointer bg-gray-50 hover:bg-gray-100">
-                <Upload className="size-10 text-gray-400 mb-2" />
-                <p className="text-sm text-gray-500">Click to upload banner image</p>
-                <input type="file" className="hidden" accept="image/*" onChange={handleBannerChange} />
-              </label>
+            
+            <div className="flex gap-2 mb-4">
+              <button
+                type="button"
+                onClick={() => setImageSource('url')}
+                className={`px-4 py-2 rounded-lg text-sm font-medium transition ${imageSource === 'url' ? 'bg-green-600 text-white' : 'bg-gray-100 text-gray-700'}`}
+              >
+                <LinkIcon className="size-4 inline mr-1" /> Image URL
+              </button>
+              <button
+                type="button"
+                onClick={() => setImageSource('upload')}
+                className={`px-4 py-2 rounded-lg text-sm font-medium transition ${imageSource === 'upload' ? 'bg-green-600 text-white' : 'bg-gray-100 text-gray-700'}`}
+              >
+                <Upload className="size-4 inline mr-1" /> Upload Image
+              </button>
+            </div>
+
+            {imageSource === 'url' ? (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Image URL</label>
+                <input
+                  type="url"
+                  placeholder="https://images.unsplash.com/photo-1540575467063-178a50c2df87"
+                  value={imageUrl}
+                  onChange={handleImageUrlChange}
+                  className="w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-green-500"
+                />
+                <p className="text-xs text-gray-500 mt-1">Enter a direct image URL (use Unsplash, Imgur, or your own server)</p>
+              </div>
             ) : (
-              <div className="relative">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Upload Image</label>
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={handleImageUpload}
+                  className="w-full px-4 py-3 border rounded-xl"
+                />
+                <p className="text-xs text-gray-500 mt-1">Upload JPG, PNG, or GIF (Max 5MB)</p>
+              </div>
+            )}
+
+            {bannerPreview && (
+              <div className="mt-4">
+                <p className="text-sm font-medium text-gray-700 mb-2">Preview:</p>
                 <img src={bannerPreview} alt="Banner preview" className="w-full h-48 object-cover rounded-xl" />
-                <button type="button" onClick={() => setBannerPreview(null)} className="absolute top-2 right-2 p-1 bg-red-500 text-white rounded-full"><X className="size-4" /></button>
+              </div>
+            )}
+            {!bannerPreview && (
+              <div className="mt-4 p-4 bg-yellow-50 rounded-xl border border-yellow-200">
+                <p className="text-sm text-yellow-700">⚠️ Banner image is required. Please add an image URL or upload one.</p>
               </div>
             )}
           </div>
 
+          {/* Date & Time */}
           <div>
             <h2 className="text-xl font-semibold text-gray-900 mb-4 flex items-center gap-2">
               <Clock className="size-5 text-green-600" /> Date & Time
             </h2>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div><label className="block text-sm font-medium text-gray-700 mb-1">Start Date & Time *</label><input type="datetime-local" name="start_datetime" value={formData.start_datetime} onChange={handleChange} required className="w-full px-4 py-3 border border-gray-300 rounded-xl" /></div>
-              <div><label className="block text-sm font-medium text-gray-700 mb-1">End Date & Time *</label><input type="datetime-local" name="end_datetime" value={formData.end_datetime} onChange={handleChange} required className="w-full px-4 py-3 border border-gray-300 rounded-xl" /></div>
+              <div><label className="block text-sm font-medium text-gray-700 mb-1">Start Date & Time *</label><input type="datetime-local" name="start_datetime" value={formData.start_datetime} onChange={handleChange} required className="w-full px-4 py-3 border rounded-xl" /></div>
+              <div><label className="block text-sm font-medium text-gray-700 mb-1">End Date & Time *</label><input type="datetime-local" name="end_datetime" value={formData.end_datetime} onChange={handleChange} required className="w-full px-4 py-3 border rounded-xl" /></div>
             </div>
           </div>
 
+          {/* Venue */}
           <div>
             <h2 className="text-xl font-semibold text-gray-900 mb-4 flex items-center gap-2">
               <MapPin className="size-5 text-green-600" /> Venue
             </h2>
             <div className="space-y-4">
-              <div><label className="block text-sm font-medium text-gray-700 mb-1">Venue Name *</label><input type="text" name="venue_name" value={formData.venue_name} onChange={handleChange} required className="w-full px-4 py-3 border border-gray-300 rounded-xl" placeholder="Millennium Hall" /></div>
-              <div><label className="block text-sm font-medium text-gray-700 mb-1">Address *</label><input type="text" name="address_line1" value={formData.address_line1} onChange={handleChange} required className="w-full px-4 py-3 border border-gray-300 rounded-xl" placeholder="Bole Road" /></div>
-              <div><label className="block text-sm font-medium text-gray-700 mb-1">City *</label><input type="text" name="city" value={formData.city} onChange={handleChange} required className="w-full px-4 py-3 border border-gray-300 rounded-xl" /></div>
+              <div><label className="block text-sm font-medium text-gray-700 mb-1">Venue Name *</label><input type="text" name="venue_name" value={formData.venue_name} onChange={handleChange} required className="w-full px-4 py-3 border rounded-xl" placeholder="Millennium Hall" /></div>
+              <div><label className="block text-sm font-medium text-gray-700 mb-1">Address *</label><input type="text" name="address_line1" value={formData.address_line1} onChange={handleChange} required className="w-full px-4 py-3 border rounded-xl" placeholder="Bole Road" /></div>
+              <div><label className="block text-sm font-medium text-gray-700 mb-1">City *</label><input type="text" name="city" value={formData.city} onChange={handleChange} required className="w-full px-4 py-3 border rounded-xl" /></div>
             </div>
           </div>
 
+          {/* Ticket Types */}
           <div>
             <h2 className="text-xl font-semibold text-gray-900 mb-4 flex items-center gap-2">
               <DollarSign className="size-5 text-green-600" /> Ticket Types
@@ -206,8 +273,8 @@ export function CreateEventPage() {
                 <div key={index} className="border-2 border-gray-200 rounded-xl p-4">
                   <h3 className="font-semibold text-gray-900 mb-3">{ticket.tier_name} Tickets</h3>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div><label className="block text-sm font-medium text-gray-700 mb-1">Price (ETB)</label><input type="number" value={ticket.price} onChange={(e) => handleTicketChange(index, 'price', e.target.value)} className="w-full px-4 py-2 border border-gray-300 rounded-xl" placeholder="250" /></div>
-                    <div><label className="block text-sm font-medium text-gray-700 mb-1">Capacity</label><input type="number" value={ticket.capacity} onChange={(e) => handleTicketChange(index, 'capacity', e.target.value)} className="w-full px-4 py-2 border border-gray-300 rounded-xl" placeholder="500" /></div>
+                    <div><label className="block text-sm font-medium text-gray-700 mb-1">Price (ETB)</label><input type="number" value={ticket.price} onChange={(e) => handleTicketChange(index, 'price', e.target.value)} className="w-full px-4 py-2 border rounded-xl" placeholder="250" /></div>
+                    <div><label className="block text-sm font-medium text-gray-700 mb-1">Capacity</label><input type="number" value={ticket.capacity} onChange={(e) => handleTicketChange(index, 'capacity', e.target.value)} className="w-full px-4 py-2 border rounded-xl" placeholder="500" /></div>
                   </div>
                 </div>
               ))}
@@ -216,7 +283,7 @@ export function CreateEventPage() {
 
           <div className="flex gap-4 pt-4">
             <button type="button" onClick={() => navigate('/organizer/dashboard')} className="px-6 py-3 border-2 border-gray-300 text-gray-700 rounded-xl font-semibold">Cancel</button>
-            <button type="submit" disabled={loading} className="flex-1 px-6 py-3 bg-gradient-to-r from-green-600 to-green-700 text-white rounded-xl font-semibold disabled:opacity-50">
+            <button type="submit" disabled={loading || !formData.banner_url} className="flex-1 px-6 py-3 bg-gradient-to-r from-green-600 to-green-700 text-white rounded-xl font-semibold disabled:opacity-50">
               {loading ? 'Creating Event...' : 'Create Event'}
             </button>
           </div>

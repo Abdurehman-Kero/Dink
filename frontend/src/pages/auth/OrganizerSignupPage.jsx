@@ -2,8 +2,11 @@ import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { 
   Eye, EyeOff, User, Mail, Phone, Building, 
-  AlertCircle, CheckCircle, Upload, X, Shield, Globe
+  CreditCard, AlertCircle, CheckCircle,
+  Upload, X, Shield, Globe, Briefcase
 } from 'lucide-react';
+
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
 export function OrganizerSignupPage() {
   const navigate = useNavigate();
@@ -11,18 +14,27 @@ export function OrganizerSignupPage() {
   const [loading, setLoading] = useState(false);
   const [step, setStep] = useState(1);
   const [logoPreview, setLogoPreview] = useState(null);
+  const [registered, setRegistered] = useState(false);
+  const [error, setError] = useState('');
   const [formData, setFormData] = useState({
+    // Account Credentials
     full_name: '',
     email: '',
     password: '',
     confirm_password: '',
+    // Organization Details
     organization_name: '',
     organization_type: '',
     website_url: '',
     bio: '',
+    // Verification & Security
     phone_number: '',
     tax_id_number: '',
-    business_registration_number: ''
+    business_registration_number: '',
+    social_linkedin: '',
+    social_instagram: '',
+    social_x: '',
+    role: 'organizer'
   });
 
   const organizationTypes = [
@@ -37,6 +49,7 @@ export function OrganizerSignupPage() {
       ...prev,
       [e.target.name]: e.target.value
     }));
+    setError('');
   };
 
   const handleLogoChange = (e) => {
@@ -52,23 +65,23 @@ export function OrganizerSignupPage() {
 
   const validateStep1 = () => {
     if (!formData.full_name) {
-      alert('Please enter your full name');
+      setError('Please enter your full name');
       return false;
     }
     if (!formData.email) {
-      alert('Please enter your email address');
+      setError('Please enter your email address');
       return false;
     }
     if (!formData.password) {
-      alert('Please enter a password');
+      setError('Please enter a password');
       return false;
     }
-    if (formData.password.length < 8) {
-      alert('Password must be at least 8 characters');
+    if (formData.password.length < 6) {
+      setError('Password must be at least 6 characters');
       return false;
     }
     if (formData.password !== formData.confirm_password) {
-      alert('Passwords do not match');
+      setError('Passwords do not match');
       return false;
     }
     return true;
@@ -76,15 +89,15 @@ export function OrganizerSignupPage() {
 
   const validateStep2 = () => {
     if (!formData.organization_name) {
-      alert('Please enter your organization name');
+      setError('Please enter your organization name');
       return false;
     }
     if (!formData.organization_type) {
-      alert('Please select organization type');
+      setError('Please select organization type');
       return false;
     }
     if (!formData.bio) {
-      alert('Please enter a brief description');
+      setError('Please enter a brief description');
       return false;
     }
     return true;
@@ -92,7 +105,7 @@ export function OrganizerSignupPage() {
 
   const validateStep3 = () => {
     if (!formData.phone_number) {
-      alert('Please enter your phone number');
+      setError('Please enter your phone number');
       return false;
     }
     return true;
@@ -112,27 +125,65 @@ export function OrganizerSignupPage() {
     if (!validateStep3()) return;
     
     setLoading(true);
+    setError('');
+    
     try {
-      await new Promise(resolve => setTimeout(resolve, 1500));
-      alert('Application submitted successfully! Our team will review your application within 2-3 business days. You will be notified via email once approved.');
-      navigate('/login');
+      const response = await fetch(`${API_URL}/auth/register`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(formData)
+      });
+      
+      const data = await response.json();
+      
+      if (response.ok) {
+        setRegistered(true);
+        setTimeout(() => {
+          navigate('/login');
+        }, 4000);
+      } else {
+        setError(data.message || 'Registration failed. Please try again.');
+      }
     } catch (error) {
-      alert('Failed to submit application. Please try again.');
+      setError('Network error. Please try again.');
     } finally {
       setLoading(false);
     }
   };
 
+  if (registered) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 flex items-center justify-center px-4 py-12">
+        <div className="w-full max-w-md">
+          <div className="bg-white rounded-2xl shadow-xl p-8 text-center">
+            <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-6">
+              <CheckCircle className="size-10 text-green-600" />
+            </div>
+            <h2 className="text-2xl font-bold text-gray-900 mb-2">Application Submitted!</h2>
+            <p className="text-gray-600 mb-4">
+              Thank you for registering as an organizer, {formData.full_name.split(' ')[0]}!
+            </p>
+            <p className="text-sm text-gray-500 mb-6">
+              Your application has been submitted for admin review. You will receive an email once your account is approved.
+            </p>
+            <div className="animate-pulse text-green-600 text-sm">
+              Redirecting to login page...
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className="min-h-screen bg-gradient-to-b from-gray-50 to-white py-8 px-4">
-      {/* Ethiopian Tricolor Accent */}
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 py-8 px-4">
       <div className="fixed top-16 left-0 right-0 h-1 flex z-40">
         <div className="flex-1 bg-green-600" />
         <div className="flex-1 bg-yellow-400" />
         <div className="flex-1 bg-red-600" />
       </div>
 
-      <div className="max-w-3xl mx-auto">
+      <div className="max-w-4xl mx-auto">
         <div className="text-center mb-8">
           <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-br from-green-600 via-yellow-500 to-red-600 rounded-2xl shadow-lg mb-4">
             <Building className="size-8 text-white" />
@@ -141,7 +192,7 @@ export function OrganizerSignupPage() {
           <p className="text-gray-600">Create an organizer account to start hosting events</p>
         </div>
 
-        {/* Progress Steps - Now only 3 steps */}
+        {/* Progress Steps */}
         <div className="mb-8">
           <div className="flex items-center justify-between">
             {[
@@ -172,6 +223,12 @@ export function OrganizerSignupPage() {
           </div>
         </div>
 
+        {error && (
+          <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-xl text-red-600 text-sm text-center">
+            {error}
+          </div>
+        )}
+
         <form onSubmit={handleSubmit} className="bg-white rounded-2xl shadow-xl p-6 md:p-8 border border-gray-100">
           {/* Step 1: Account Credentials */}
           {step === 1 && (
@@ -195,7 +252,6 @@ export function OrganizerSignupPage() {
                   <Mail className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-gray-400" />
                   <input type="email" name="email" value={formData.email} onChange={handleChange} required className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-xl" placeholder="organizer@example.com" />
                 </div>
-                <p className="text-xs text-gray-500 mt-1">This will be your login email</p>
               </div>
 
               <div>
@@ -206,7 +262,7 @@ export function OrganizerSignupPage() {
                     {showPassword ? <EyeOff className="size-5" /> : <Eye className="size-5" />}
                   </button>
                 </div>
-                <p className="text-xs text-gray-500 mt-1">At least 8 characters</p>
+                <p className="text-xs text-gray-500 mt-1">At least 6 characters</p>
               </div>
 
               <div>
@@ -245,19 +301,15 @@ export function OrganizerSignupPage() {
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">Organization Logo</label>
                 {!logoPreview ? (
-                  <label className="flex flex-col items-center justify-center w-full h-32 border-2 border-gray-300 border-dashed rounded-xl cursor-pointer bg-gray-50 hover:bg-gray-100 transition">
-                    <div className="flex flex-col items-center">
-                      <Upload className="size-8 text-gray-400 mb-2" />
-                      <p className="text-sm text-gray-500">Click to upload logo</p>
-                    </div>
+                  <label className="flex flex-col items-center justify-center w-full h-32 border-2 border-gray-300 border-dashed rounded-xl cursor-pointer bg-gray-50 hover:bg-gray-100">
+                    <Upload className="size-8 text-gray-400 mb-2" />
+                    <p className="text-sm text-gray-500">Click to upload logo</p>
                     <input type="file" className="hidden" accept="image/*" onChange={handleLogoChange} />
                   </label>
                 ) : (
                   <div className="relative inline-block">
                     <img src={logoPreview} alt="Logo preview" className="w-24 h-24 object-cover rounded-lg border" />
-                    <button type="button" onClick={handleRemoveLogo} className="absolute -top-2 -right-2 p-1 bg-red-500 text-white rounded-full">
-                      <X className="size-3" />
-                    </button>
+                    <button type="button" onClick={handleRemoveLogo} className="absolute -top-2 -right-2 p-1 bg-red-500 text-white rounded-full"><X className="size-3" /></button>
                   </div>
                 )}
               </div>
@@ -277,7 +329,7 @@ export function OrganizerSignupPage() {
             </div>
           )}
 
-          {/* Step 3: Verification & Contact Information */}
+          {/* Step 3: Verification & Contact */}
           {step === 3 && (
             <div className="space-y-6">
               <h2 className="text-xl font-bold text-gray-900 mb-4 flex items-center gap-2">
@@ -311,23 +363,8 @@ export function OrganizerSignupPage() {
                     <p className="font-medium">What happens next?</p>
                     <p className="text-blue-700 mt-1">
                       After submitting this application, our team will review your information within 2-3 business days.
-                      Once approved, you'll receive an email with instructions to:
+                      Once approved, you'll receive an email with instructions to access your organizer dashboard.
                     </p>
-                    <ul className="list-disc list-inside mt-2 text-blue-700 space-y-1">
-                      <li>Access your organizer dashboard</li>
-                      <li>Set up your payout information (bank details)</li>
-                      <li>Start creating events</li>
-                    </ul>
-                  </div>
-                </div>
-              </div>
-
-              <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-4">
-                <div className="flex items-start gap-3">
-                  <AlertCircle className="size-5 text-yellow-600 flex-shrink-0 mt-0.5" />
-                  <div className="text-sm text-yellow-800">
-                    <p className="font-medium">Note</p>
-                    <p className="text-yellow-700">Payout information will be collected after your account is approved.</p>
                   </div>
                 </div>
               </div>

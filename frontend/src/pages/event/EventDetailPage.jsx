@@ -9,6 +9,7 @@ import {
 } from 'lucide-react';
 import { eventAPI } from '../../api/client';
 import { useAuth } from '../../contexts/AuthContext';
+import { ReviewSection } from '../../components/groupC/ReviewSection';
 
 export function EventDetailPage() {
   const { eventId } = useParams();
@@ -69,7 +70,6 @@ export function EventDetailPage() {
     const quantity = quantities[selectedTicket.id] || 1;
     setSaving(true);
     
-    // Save to localStorage for checkout
     const checkoutItems = [{
       id: `res_${Date.now()}`,
       event_id: event.id,
@@ -151,6 +151,7 @@ export function EventDetailPage() {
 
   return (
     <div className="min-h-screen bg-gray-50">
+      {/* Ethiopian Tricolor Accent */}
       <div className="fixed top-16 left-0 right-0 h-1 flex z-40">
         <div className="flex-1 bg-green-600" />
         <div className="flex-1 bg-yellow-400" />
@@ -219,7 +220,8 @@ export function EventDetailPage() {
           {[
             { id: 'details', label: 'Event Details', icon: Calendar },
             { id: 'tickets', label: 'Tickets', icon: Ticket },
-            { id: 'location', label: 'Location', icon: MapPin }
+            { id: 'location', label: 'Location', icon: MapPin },
+            { id: 'reviews', label: 'Reviews', icon: Star }
           ].map(tab => (
             <button key={tab.id} onClick={() => setActiveTab(tab.id)} className={`flex items-center gap-2 px-6 py-3 text-sm font-medium transition-all border-b-2 ${activeTab === tab.id ? 'border-green-600 text-green-600' : 'border-transparent text-gray-500'}`}>
               <tab.icon className="size-4" /> {tab.label}
@@ -282,6 +284,11 @@ export function EventDetailPage() {
               <div className="bg-gray-200 rounded-xl h-64 flex items-center justify-center"><MapPin className="size-12 text-gray-400" /><span className="text-gray-500 ml-2">Map View</span></div>
             </div>
           </div>
+        )}
+
+        {/* Reviews Tab */}
+        {activeTab === 'reviews' && (
+          <ReviewSection eventId={eventId} />
         )}
       </div>
 

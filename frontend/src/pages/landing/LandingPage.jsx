@@ -41,26 +41,29 @@ export function LandingPage() {
 
   const testimonials = [
     {
-      name: "Abebe Kebede",
+      name: "Nahom Wondale",
       role: "Event Organizer",
-      content: "DEMS has transformed how I manage my events. The platform is intuitive and the support team is amazing!",
+      content:
+        "DEMS has transformed how I manage my events. The platform is intuitive and the support team is amazing!",
       rating: 5,
-      image: "https://randomuser.me/api/portraits/men/1.jpg"
+      image: "https://i.imgur.com/ryO91vr.png",
     },
     {
       name: "Helen Mekonnen",
       role: "Attendee",
-      content: "Finding and booking tickets has never been easier. Love the QR code tickets!",
+      content: "Finding and booking tickets has never been easier.",
       rating: 5,
-      image: "https://randomuser.me/api/portraits/women/2.jpg"
+      image:
+        "https://plus.unsplash.com/premium_photo-1745624797642-4f522d5bcbfe?q=80&w=687&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D",
     },
     {
-      name: "Dawit Tesfaye",
+      name: "Abdisa Waritu",
       role: "Event Organizer",
-      content: "The analytics dashboard gives me real insights into my event performance.",
+      content:
+        "The analytics dashboard gives me real insights into my event performance.",
       rating: 5,
-      image: "https://randomuser.me/api/portraits/men/3.jpg"
-    }
+      image: "https://i.imgur.com/ndMwXNm.png",
+    },
   ];
 
   const stats = [

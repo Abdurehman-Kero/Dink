@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { 
   CreditCard, Lock, CheckCircle, Clock, 
   Shield, Wallet, Loader, Building, Smartphone,
-  ArrowRight, DollarSign, TrendingUp
+  ArrowRight, DollarSign
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 
@@ -38,7 +38,6 @@ export function PayoutSettingsPage() {
   const fetchPaymentStats = async () => {
     setLoading(true);
     try {
-      // Mock data - replace with API call
       setStats({
         total_fee_due: 5000,
         total_paid: 2500,
@@ -68,30 +67,35 @@ export function PayoutSettingsPage() {
     setError('');
     
     try {
+      const token = localStorage.getItem('authToken');
+      
       const response = await fetch(`${API_URL}/payments/platform-fee`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('authToken')}`
+          'Authorization': `Bearer ${token}`
         },
         body: JSON.stringify({
-          amount: paymentAmount,
+          amount: parseFloat(paymentAmount),
           payment_method: paymentMethod
         })
       });
       
       const data = await response.json();
-      console.log('Payment response:', data);
       
-      if (data.success && data.checkout_url) {
+      if (response.ok && data.success && data.checkout_url) {
         window.location.href = data.checkout_url;
       } else {
-        setError(data.message || 'Payment failed. Please try again.');
+        // Extract the error message properly
+        const errorMessage = typeof data.message === 'string' 
+          ? data.message 
+          : (data.message?.email?.[0] || 'Payment failed. Please try again.');
+        setError(errorMessage);
         setProcessing(false);
       }
     } catch (error) {
       console.error('Payment error:', error);
-      setError('Service error. Please try again.');
+      setError('Network error. Please check if backend is running.');
       setProcessing(false);
     }
   };
@@ -136,7 +140,6 @@ export function PayoutSettingsPage() {
           </div>
         </div>
 
-        {/* Stats Cards */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
           <div className="bg-white rounded-2xl p-6 shadow-sm border-l-4 border-blue-500">
             <p className="text-sm text-gray-600">Total Fee Due</p>
@@ -156,48 +159,39 @@ export function PayoutSettingsPage() {
           </div>
         </div>
 
-        {/* Payment History */}
         <div className="bg-white rounded-2xl shadow-sm overflow-hidden mb-8">
           <div className="px-6 py-4 border-b">
             <h2 className="text-xl font-bold text-gray-900">Payment History</h2>
           </div>
-          {paymentHistory.length === 0 ? (
-            <div className="text-center py-12">
-              <Wallet className="size-12 text-gray-300 mx-auto mb-3" />
-              <p className="text-gray-500">No payment history yet</p>
-            </div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead className="bg-gray-50">
-                  <tr>
-                    <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700">Date</th>
-                    <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700">Amount</th>
-                    <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700">Method</th>
-                    <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700">Status</th>
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700">Date</th>
+                  <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700">Amount</th>
+                  <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700">Method</th>
+                  <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700">Status</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-200">
+                {paymentHistory.map((payment) => (
+                  <tr key={payment.id} className="hover:bg-gray-50">
+                    <td className="px-6 py-4 text-sm text-gray-900">{new Date(payment.date).toLocaleDateString()}</td>
+                    <td className="px-6 py-4 text-sm font-semibold text-gray-900">ETB {payment.amount}</td>
+                    <td className="px-6 py-4 text-sm text-gray-700">{payment.method}</td>
+                    <td className="px-6 py-4">{getStatusBadge(payment.status)}</td>
                   </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-200">
-                  {paymentHistory.map((payment) => (
-                    <tr key={payment.id} className="hover:bg-gray-50">
-                      <td className="px-6 py-4 text-sm text-gray-900">{new Date(payment.date).toLocaleDateString()}</td>
-                      <td className="px-6 py-4 text-sm font-semibold text-gray-900">ETB {payment.amount}</td>
-                      <td className="px-6 py-4 text-sm text-gray-700">{payment.method}</td>
-                      <td className="px-6 py-4">{getStatusBadge(payment.status)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
 
-        {/* Pay Now Button */}
         <div className="text-center">
           <button 
             onClick={() => setShowPaymentModal(true)} 
             disabled={stats.pending_payment === 0}
-            className="px-8 py-4 bg-gradient-to-r from-green-600 to-green-700 text-white rounded-xl font-semibold hover:from-green-700 hover:to-green-800 transition shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
+            className="px-8 py-4 bg-gradient-to-r from-green-600 to-green-700 text-white rounded-xl font-semibold hover:from-green-700 hover:to-green-800 transition shadow-md disabled:opacity-50"
           >
             Pay Platform Fee
           </button>
@@ -232,7 +226,6 @@ export function PayoutSettingsPage() {
                   placeholder={`Min: 500, Max: ${stats.pending_payment}`}
                   className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-green-500"
                 />
-                <p className="text-xs text-gray-500 mt-1">Minimum payment: ETB 500</p>
               </div>
 
               <div>
@@ -240,21 +233,21 @@ export function PayoutSettingsPage() {
                 <div className="flex gap-2">
                   <button 
                     onClick={() => setPaymentMethod('telebirr')} 
-                    className={`flex-1 p-3 border-2 rounded-xl text-center transition ${paymentMethod === 'telebirr' ? 'border-green-500 bg-green-50' : 'border-gray-200 hover:border-green-300'}`}
+                    className={`flex-1 p-3 border-2 rounded-xl text-center transition ${paymentMethod === 'telebirr' ? 'border-green-500 bg-green-50' : 'border-gray-200'}`}
                   >
                     <Smartphone className="size-5 mx-auto mb-1" />
                     <span className="text-xs">Telebirr</span>
                   </button>
                   <button 
                     onClick={() => setPaymentMethod('cbe')} 
-                    className={`flex-1 p-3 border-2 rounded-xl text-center transition ${paymentMethod === 'cbe' ? 'border-green-500 bg-green-50' : 'border-gray-200 hover:border-green-300'}`}
+                    className={`flex-1 p-3 border-2 rounded-xl text-center transition ${paymentMethod === 'cbe' ? 'border-green-500 bg-green-50' : 'border-gray-200'}`}
                   >
                     <Building className="size-5 mx-auto mb-1" />
                     <span className="text-xs">CBE Birr</span>
                   </button>
                   <button 
                     onClick={() => setPaymentMethod('card')} 
-                    className={`flex-1 p-3 border-2 rounded-xl text-center transition ${paymentMethod === 'card' ? 'border-green-500 bg-green-50' : 'border-gray-200 hover:border-green-300'}`}
+                    className={`flex-1 p-3 border-2 rounded-xl text-center ${paymentMethod === 'card' ? 'border-green-500 bg-green-50' : 'border-gray-200'}`}
                   >
                     <CreditCard className="size-5 mx-auto mb-1" />
                     <span className="text-xs">Card</span>
@@ -268,13 +261,13 @@ export function PayoutSettingsPage() {
               </div>
 
               <div className="flex gap-3 pt-4">
-                <button onClick={() => setShowPaymentModal(false)} className="flex-1 px-4 py-2 border border-gray-300 rounded-xl text-gray-700 hover:bg-gray-50 transition">
+                <button onClick={() => setShowPaymentModal(false)} className="flex-1 px-4 py-2 border border-gray-300 rounded-xl text-gray-700">
                   Cancel
                 </button>
                 <button 
                   onClick={handlePayment} 
                   disabled={processing} 
-                  className="flex-1 px-4 py-2 bg-gradient-to-r from-green-600 to-green-700 text-white rounded-xl font-semibold hover:from-green-700 hover:to-green-800 transition disabled:opacity-50 flex items-center justify-center gap-2"
+                  className="flex-1 px-4 py-2 bg-gradient-to-r from-green-600 to-green-700 text-white rounded-xl font-semibold disabled:opacity-50 flex items-center justify-center gap-2"
                 >
                   {processing ? <Loader className="size-5 animate-spin" /> : <ArrowRight className="size-5" />}
                   {processing ? 'Processing...' : 'Pay Now'}

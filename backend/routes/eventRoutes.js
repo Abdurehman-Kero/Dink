@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const {
   getEvents,
+  getEventsByOrganizer,
   getEventById,
   createEvent,
   updateEvent,
@@ -15,7 +16,8 @@ router.get('/', getEvents);
 router.get('/featured', getFeaturedEvents);
 router.get('/:id', getEventById);
 
-// Protected routes (Organizer only)
+// Protected routes - ORDER MATTERS! Put specific routes before generic ones
+router.get('/organizer/my-events', protect, authorize('organizer', 'admin'), getEventsByOrganizer);
 router.post('/', protect, authorize('organizer', 'admin'), createEvent);
 router.put('/:id', protect, authorize('organizer', 'admin'), updateEvent);
 router.delete('/:id', protect, authorize('organizer', 'admin'), deleteEvent);

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
-import { CheckCircle, XCircle, Loader } from 'lucide-react';
+import { CheckCircle, Loader, XCircle } from 'lucide-react';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
@@ -16,6 +16,7 @@ export function PaymentVerify() {
     if (!tx_ref) {
       setStatus('error');
       setMessage('Invalid payment reference');
+      setTimeout(() => navigate('/checkout'), 3000);
       return;
     }
     
@@ -29,7 +30,7 @@ export function PaymentVerify() {
       
       if (data.success && data.status === 'completed') {
         setStatus('success');
-        setMessage('Payment verified successfully! Redirecting to your tickets...');
+        setMessage('Payment verified successfully! Redirecting...');
         
         // Clear cart
         localStorage.removeItem('checkoutReservations');
@@ -40,16 +41,12 @@ export function PaymentVerify() {
       } else {
         setStatus('error');
         setMessage(data.message || 'Payment verification failed');
-        setTimeout(() => {
-          navigate('/checkout');
-        }, 3000);
+        setTimeout(() => navigate('/checkout'), 3000);
       }
     } catch (error) {
       setStatus('error');
       setMessage('Verification failed. Please contact support.');
-      setTimeout(() => {
-        navigate('/checkout');
-      }, 3000);
+      setTimeout(() => navigate('/checkout'), 3000);
     }
   };
 

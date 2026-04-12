@@ -159,77 +159,7 @@ export function ProfilePage() {
             </div>
           </div>
 
-          {/* Preferences */}
-          <div className="bg-white rounded-2xl shadow-sm p-6 border border-gray-100">
-            <h2 className="text-xl font-bold text-gray-900 mb-6 flex items-center gap-2">
-              <Coffee className="size-5 text-green-600" />
-              Preferences
-            </h2>
-
-            <div className="space-y-6">
-              {/* Theme */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-3">
-                  Theme
-                </label>
-                <div className="grid grid-cols-2 gap-4">
-                  <button
-                    onClick={() => handleThemeChange('light')}
-                    className={`px-4 py-3 border-2 rounded-xl font-semibold transition-all flex items-center justify-center gap-2 ${
-                      user.theme_preference === 'light'
-                        ? 'border-green-500 bg-green-50 text-green-700'
-                        : 'border-gray-300 hover:border-gray-400'
-                    }`}
-                  >
-                    <Sun className="size-5" />
-                    Light
-                  </button>
-                  <button
-                    onClick={() => handleThemeChange('dark')}
-                    className={`px-4 py-3 border-2 rounded-xl font-semibold transition-all flex items-center justify-center gap-2 ${
-                      user.theme_preference === 'dark'
-                        ? 'border-green-500 bg-green-50 text-green-700'
-                        : 'border-gray-300 hover:border-gray-400'
-                    }`}
-                  >
-                    <Moon className="size-5" />
-                    Dark
-                  </button>
-                </div>
-              </div>
-
-              {/* Language */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-3">
-                  Language / ቋንቋ
-                </label>
-                <div className="grid grid-cols-2 gap-4">
-                  <button
-                    onClick={() => handleLanguageChange('en')}
-                    className={`px-4 py-3 border-2 rounded-xl font-semibold transition-all flex items-center justify-center gap-2 ${
-                      user.default_language === 'en'
-                        ? 'border-green-500 bg-green-50 text-green-700'
-                        : 'border-gray-300 hover:border-gray-400'
-                    }`}
-                  >
-                    <Globe className="size-5" />
-                    English
-                  </button>
-                  <button
-                    onClick={() => handleLanguageChange('am')}
-                    className={`px-4 py-3 border-2 rounded-xl font-semibold transition-all flex items-center justify-center gap-2 ${
-                      user.default_language === 'am'
-                        ? 'border-green-500 bg-green-50 text-green-700'
-                        : 'border-gray-300 hover:border-gray-400'
-                    }`}
-                  >
-                    <Globe className="size-5" />
-                    አማርኛ
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
+    
         </div>
       </div>
     </div>

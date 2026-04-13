@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { 
   BarChart3, TrendingUp, Users, DollarSign, Ticket, 
-  Calendar, MapPin, Clock, Star, Eye, Download,
+  Calendar, MapPin, Clock, Star, Eye,
   ChevronLeft, AlertCircle, Activity
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
@@ -338,13 +338,6 @@ export function EventAnalyticsPage() {
           </div>
         </div>
 
-        {/* Export Button */}
-        <div className="mt-8 flex justify-end">
-          <button className="px-6 py-3 bg-white border border-gray-300 rounded-xl text-gray-700 hover:bg-gray-50 transition flex items-center gap-2">
-            <Download className="size-5" />
-            Export Analytics Report
-          </button>
-        </div>
       </div>
     </div>
   );

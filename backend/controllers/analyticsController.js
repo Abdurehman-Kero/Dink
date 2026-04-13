@@ -1,4 +1,5 @@
 const { prisma } = require('../config/database');
+const { buildCsv } = require('../utils/csv');
 
 const toNumber = (value) => {
   const parsed = Number(value);
@@ -282,4 +283,139 @@ const getOrganizerStats = async (req, res) => {
   }
 };
 
-module.exports = { getEventAnalytics, getOrganizerStats };
+const toIsoDateTime = (value) => {
+  if (!value) {
+    return '';
+  }
+
+  const date = value instanceof Date ? value : new Date(value);
+  return Number.isNaN(date.getTime()) ? '' : date.toISOString();
+};
+
+const exportOrganizerDashboardCsv = async (req, res) => {
+  try {
+    const organizerId = req.user.id;
+    const exportedAt = new Date().toISOString();
+
+    const events = await prisma.event.findMany({
+      where: {
+        organizer_id: organizerId
+      },
+      select: {
+        id: true,
+        title: true,
+        status: true,
+        city: true,
+        start_datetime: true,
+        end_datetime: true,
+        created_at: true,
+        avg_rating: true,
+        category: {
+          select: {
+            name: true
+          }
+        },
+        ticket_types: {
+          select: {
+            capacity: true,
+            remaining_quantity: true,
+            price: true
+          }
+        },
+        check_in_logs: {
+          select: {
+            id: true
+          }
+        },
+        reviews: {
+          where: {
+            status: 'visible'
+          },
+          select: {
+            rating: true
+          }
+        }
+      },
+      orderBy: {
+        created_at: 'desc'
+      }
+    });
+
+    const rows = events.map((event) => {
+      let totalCapacity = 0;
+      let ticketsRemaining = 0;
+      let ticketsSold = 0;
+      let grossRevenue = 0;
+
+      for (const ticketType of event.ticket_types || []) {
+        const capacity = Math.max(0, ticketType.capacity || 0);
+        const remaining = Math.max(0, ticketType.remaining_quantity || 0);
+        const sold = Math.max(0, capacity - remaining);
+
+        totalCapacity += capacity;
+        ticketsRemaining += remaining;
+        ticketsSold += sold;
+        grossRevenue += sold * toNumber(ticketType.price);
+      }
+
+      const visibleReviews = event.reviews?.length || 0;
+      const ratingFromReviews = visibleReviews > 0
+        ? event.reviews.reduce((sum, review) => sum + toNumber(review.rating), 0) / visibleReviews
+        : toNumber(event.avg_rating);
+
+      return {
+        generated_at: exportedAt,
+        event_id: event.id,
+        title: event.title,
+        status: event.status,
+        category_name: event.category?.name || '',
+        city: event.city,
+        start_datetime: toIsoDateTime(event.start_datetime),
+        end_datetime: toIsoDateTime(event.end_datetime),
+        ticket_types_count: event.ticket_types?.length || 0,
+        total_capacity: totalCapacity,
+        tickets_sold: ticketsSold,
+        tickets_remaining: ticketsRemaining,
+        gross_revenue_etb: grossRevenue.toFixed(2),
+        total_checkins: event.check_in_logs?.length || 0,
+        visible_reviews: visibleReviews,
+        average_rating: ratingFromReviews.toFixed(2),
+        created_at: toIsoDateTime(event.created_at)
+      };
+    });
+
+    const csv = buildCsv({
+      columns: [
+        { key: 'generated_at', header: 'generated_at' },
+        { key: 'event_id', header: 'event_id' },
+        { key: 'title', header: 'title' },
+        { key: 'status', header: 'status' },
+        { key: 'category_name', header: 'category_name' },
+        { key: 'city', header: 'city' },
+        { key: 'start_datetime', header: 'start_datetime' },
+        { key: 'end_datetime', header: 'end_datetime' },
+        { key: 'ticket_types_count', header: 'ticket_types_count' },
+        { key: 'total_capacity', header: 'total_capacity' },
+        { key: 'tickets_sold', header: 'tickets_sold' },
+        { key: 'tickets_remaining', header: 'tickets_remaining' },
+        { key: 'gross_revenue_etb', header: 'gross_revenue_etb' },
+        { key: 'total_checkins', header: 'total_checkins' },
+        { key: 'visible_reviews', header: 'visible_reviews' },
+        { key: 'average_rating', header: 'average_rating' },
+        { key: 'created_at', header: 'created_at' }
+      ],
+      rows
+    });
+
+    const filename = `organizer-dashboard-export-${new Date().toISOString().slice(0, 10)}.csv`;
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+
+    return res.status(200).send(csv);
+  } catch (error) {
+    console.error('Export organizer dashboard CSV error:', error);
+    return res.status(500).json({ success: false, message: 'Server error', error: error.message });
+  }
+};
+
+module.exports = { getEventAnalytics, getOrganizerStats, exportOrganizerDashboardCsv };

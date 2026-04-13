@@ -7,6 +7,7 @@ const {
   rejectOrganizer, 
   getAllOrganizers,
   getDashboardStats,
+  exportAdminDashboardCsv,
   getAdmins,
   createAdmin,
   updateAdminStatus,
@@ -18,6 +19,7 @@ router.use(protect, authorize('admin'));
 
 // Dashboard stats
 router.get('/stats', getDashboardStats);
+router.get('/dashboard/csv', exportAdminDashboardCsv);
 
 // Organizer management
 router.get('/pending-organizers', getPendingOrganizers);

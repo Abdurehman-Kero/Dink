@@ -24,6 +24,7 @@ import {
 } from "lucide-react";
 import { useAuth } from "../../contexts/AuthContext";
 import { adminCategoryAPI, moderationAPI } from "../../api/client";
+import { DashboardCsvDownloadButton } from "../../components/common/DashboardCsvDownloadButton";
 
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000/api";
 
@@ -328,6 +329,12 @@ export function AdminDashboard() {
             >
               <RefreshCw className="size-4" /> Refresh
             </button>
+            <DashboardCsvDownloadButton
+              endpoint="/admin/dashboard/csv"
+              label="Download CSV"
+              loadingLabel="Preparing CSV..."
+              filenamePrefix="admin-dashboard"
+            />
           </div>
         </div>
 

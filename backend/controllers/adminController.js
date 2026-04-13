@@ -3,8 +3,23 @@ const bcrypt = require('bcryptjs');
 const { sendOrganizerApproval } = require('../services/notificationService');
 const { sendAccountStatusEmail } = require('../services/emailService');
 const { generateId } = require('../utils/id');
+const { buildCsv } = require('../utils/csv');
 
 const SUPER_ADMIN_EMAIL = 'nexussphere0974@gmail.com';
+
+const toNumber = (value) => {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : 0;
+};
+
+const toIsoDateTime = (value) => {
+  if (!value) {
+    return '';
+  }
+
+  const date = value instanceof Date ? value : new Date(value);
+  return Number.isNaN(date.getTime()) ? '' : date.toISOString();
+};
 
 // Get all pending organizer applications
 const getPendingOrganizers = async (req, res) => {
@@ -233,6 +248,110 @@ const getDashboardStats = async (req, res) => {
   }
 };
 
+const exportAdminDashboardCsv = async (req, res) => {
+  try {
+    const exportedAt = new Date().toISOString();
+
+    const organizers = await prisma.user.findMany({
+      where: {
+        role_id: 2
+      },
+      select: {
+        id: true,
+        full_name: true,
+        email: true,
+        status: true,
+        last_login_at: true,
+        created_at: true,
+        organizer_profile: {
+          select: {
+            organization_name: true,
+            organization_type: true,
+            verification_status: true
+          }
+        },
+        organized_events: {
+          select: {
+            status: true,
+            ticket_types: {
+              select: {
+                capacity: true,
+                remaining_quantity: true,
+                price: true
+              }
+            }
+          }
+        }
+      },
+      orderBy: {
+        created_at: 'desc'
+      }
+    });
+
+    const rows = organizers.map((organizer) => {
+      const events = organizer.organized_events || [];
+      let totalTicketsSold = 0;
+      let totalRevenue = 0;
+
+      for (const event of events) {
+        for (const ticketType of event.ticket_types || []) {
+          const sold = Math.max(0, ticketType.capacity - ticketType.remaining_quantity);
+          totalTicketsSold += sold;
+          totalRevenue += sold * toNumber(ticketType.price);
+        }
+      }
+
+      return {
+        generated_at: exportedAt,
+        organizer_id: organizer.id,
+        organizer_name: organizer.full_name,
+        organizer_email: organizer.email,
+        account_status: organizer.status,
+        verification_status: organizer.organizer_profile?.verification_status || 'pending',
+        organization_name: organizer.organizer_profile?.organization_name || '',
+        organization_type: organizer.organizer_profile?.organization_type || '',
+        total_events: events.length,
+        published_events: events.filter((event) => event.status === 'published').length,
+        completed_events: events.filter((event) => event.status === 'completed').length,
+        total_tickets_sold: totalTicketsSold,
+        total_revenue_etb: totalRevenue.toFixed(2),
+        last_login_at: toIsoDateTime(organizer.last_login_at),
+        joined_at: toIsoDateTime(organizer.created_at)
+      };
+    });
+
+    const csv = buildCsv({
+      columns: [
+        { key: 'generated_at', header: 'generated_at' },
+        { key: 'organizer_id', header: 'organizer_id' },
+        { key: 'organizer_name', header: 'organizer_name' },
+        { key: 'organizer_email', header: 'organizer_email' },
+        { key: 'account_status', header: 'account_status' },
+        { key: 'verification_status', header: 'verification_status' },
+        { key: 'organization_name', header: 'organization_name' },
+        { key: 'organization_type', header: 'organization_type' },
+        { key: 'total_events', header: 'total_events' },
+        { key: 'published_events', header: 'published_events' },
+        { key: 'completed_events', header: 'completed_events' },
+        { key: 'total_tickets_sold', header: 'total_tickets_sold' },
+        { key: 'total_revenue_etb', header: 'total_revenue_etb' },
+        { key: 'last_login_at', header: 'last_login_at' },
+        { key: 'joined_at', header: 'joined_at' }
+      ],
+      rows
+    });
+
+    const filename = `admin-dashboard-export-${new Date().toISOString().slice(0, 10)}.csv`;
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+
+    return res.status(200).send(csv);
+  } catch (error) {
+    console.error('Export admin dashboard CSV error:', error);
+    return res.status(500).json({ success: false, message: 'Server error', error: error.message });
+  }
+};
+
 // =====================================================
 // ADMIN MANAGEMENT FUNCTIONS (Super Admin only)
 // =====================================================
@@ -392,6 +511,7 @@ module.exports = {
   rejectOrganizer, 
   getAllOrganizers,
   getDashboardStats,
+  exportAdminDashboardCsv,
   getAdmins,
   createAdmin,
   updateAdminStatus,

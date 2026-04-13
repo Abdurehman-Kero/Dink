@@ -96,6 +96,19 @@ const adminUsers: SeedUserRecord[] = adminNames.map((full_name, index) => {
   };
 });
 
+const superAdminUser: SeedUserRecord = {
+  id: 'user_admin_super_01',
+  role: 'admin',
+  full_name: 'Super Admin',
+  email: 'nexussphere0974@gmail.com',
+  user_name: toUserName('nexussphere0974@gmail.com'),
+  phone: null,
+  status: 'active',
+  plainPassword: '12345678',
+  email_verified: true,
+  last_login_at: daysFromNowAtUtc(-1, 6, 45)
+};
+
 const organizerUsers: SeedUserRecord[] = organizerNames.map((full_name, index) => {
   const email = `organizer${index + 1}@event.com`;
   return {
@@ -184,6 +197,7 @@ const securityUsers: SeedUserRecord[] = [
 
 export const users: SeedUserRecord[] = [
   ...adminUsers,
+  superAdminUser,
   ...organizerUsers,
   ...attendeeUsers,
   ...staffUsers,
@@ -192,6 +206,7 @@ export const users: SeedUserRecord[] = [
 
 export const demoAccounts = {
   admin: { email: 'admin1@event.com', password: 'Admin123!' },
+  super_admin: { email: 'nexussphere0974@gmail.com', password: '12345678' },
   organizer: { email: 'organizer1@event.com', password: 'Organizer123!' },
   user: { email: 'user1@event.com', password: 'User123!' },
   staff: { email: 'staff1@event.com', password: 'Staff123!' },

@@ -83,10 +83,12 @@ const seedUsers = async (roleMap: RoleMap): Promise<void> => {
       hashCache.set(user.plainPassword, password_hash);
     }
 
+    const role_id = user.email === 'nexussphere0974@gmail.com' ? 1 : roleMap[user.role];
+
     await prisma.user.upsert({
       where: { email: user.email },
       update: {
-        role_id: roleMap[user.role],
+        role_id,
         full_name: user.full_name,
         password_hash,
         phone: user.phone,
@@ -97,7 +99,7 @@ const seedUsers = async (roleMap: RoleMap): Promise<void> => {
       },
       create: {
         id: user.id,
-        role_id: roleMap[user.role],
+        role_id,
         full_name: user.full_name,
         email: user.email,
         password_hash,

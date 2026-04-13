@@ -1,4 +1,4 @@
-import { Routes, Route } from 'react-router-dom';
+import { Navigate, Route, Routes } from 'react-router-dom';
 import { Navbar } from './components/common/Navbar';
 import { Footer } from './components/common/Footer';
 import { FloatingCartButton } from './components/common/FloatingCartButton';
@@ -15,7 +15,6 @@ import { EventDetailPage } from './pages/event/EventDetailPage';
 import { CheckoutPage } from './pages/checkout/CheckoutPage';
 import { SavedTicketsPage } from './pages/cart/SavedTicketsPage';
 import { MyTicketsPage } from './pages/tickets/MyTicketsPage';
-import { EventsAnalyticsOverview } from "./pages/organizer/EventsAnalyticsOverview";
 import { OrganizerDashboard } from './pages/organizer/OrganizerDashboard';
 import { CreateEventPage } from './pages/organizer/CreateEventPage';
 import { StaffManagementPage } from './pages/organizer/StaffManagementPage';
@@ -26,6 +25,21 @@ import { AdminApprovalPage } from './pages/admin/AdminApprovalPage';
 import { SecurityScannerPage } from './pages/security/SecurityScannerPage';
 import { ProfilePage } from './pages/profile/ProfilePage';
 import { AdminManagement } from "./pages/admin/AdminManagement";
+import { useAuth } from './contexts/AuthContext';
+
+function ProtectedRoleRoute({ children, allowedRoleIds }) {
+  const { isAuthenticated, user } = useAuth();
+
+  if (!isAuthenticated) {
+    return <Navigate to="/login" replace />;
+  }
+
+  if (allowedRoleIds?.length && !allowedRoleIds.includes(user?.role_id)) {
+    return <Navigate to="/discover" replace />;
+  }
+
+  return children;
+}
 
 function App() {
   return (
@@ -53,19 +67,25 @@ function App() {
           />
           <Route path="/admin/dashboard" element={<AdminDashboard />} />
           <Route path="/admin/approvals" element={<AdminApprovalPage />} />
-          <Route path="/staff/dashboard" element={<StaffDashboard />} />
+          <Route
+            path="/staff/dashboard"
+            element={(
+              <ProtectedRoleRoute allowedRoleIds={[1, 4, 5]}>
+                <StaffDashboard />
+              </ProtectedRoleRoute>
+            )}
+          />
           <Route path="/admin/users" element={<AdminManagement />} />
           <Route path="/admin/approvals" element={<OrganizerApprovals />} />
           <Route path="/payment/verify" element={<PaymentSuccess />} />
           <Route path="/payment/success" element={<PaymentSuccess />} />
-          <Route path="/security/scanner" element={<SecurityScannerPage />} />
           <Route
-            path="/organizer/events-analytics"
-            element={<EventsAnalyticsOverview />}
-          />
-          <Route
-            path="/organizer/analytics/:eventId"
-            element={<EventAnalyticsPage />}
+            path="/security/scanner"
+            element={(
+              <ProtectedRoleRoute allowedRoleIds={[1, 4, 5]}>
+                <SecurityScannerPage />
+              </ProtectedRoleRoute>
+            )}
           />
         </Routes>
       </main>

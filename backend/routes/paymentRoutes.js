@@ -8,7 +8,7 @@ const { initPlatformFeePayment, verifyPlatformFeePayment, getPlatformFeeHistory 
 router.post('/init', protect, initPayment);
 
 // Verify endpoint - MUST come BEFORE platform-fee routes
-router.get('/verify', verifyPayment);
+router.get('/verify', protect, verifyPayment);
 
 // Platform fee routes (Organizer pays admin)
 router.post('/platform-fee', protect, initPlatformFeePayment);

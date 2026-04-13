@@ -1,93 +1,335 @@
-const { sequelize } = require('../config/database');
-const { initializePayment, verifyPayment: chapaVerifyPayment } = require('../services/chapaService');
 const crypto = require('crypto');
+
+const { prisma } = require('../config/database');
+const { initializePayment, verifyPayment: chapaVerifyPayment } = require('../services/chapaService');
+const { signTicketQrPayload, buildTicketQrDataUrl } = require('../utils/crypto');
+const { generateId } = require('../utils/id');
+
+const SERVICE_FEE_RATE = 0.1;
+
+const parseAmount = (value) => {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : 0;
+};
+
+const buildTicketCode = (orderId, orderItemId, index) => {
+  const digest = crypto
+    .createHash('sha1')
+    .update(`${orderId}:${orderItemId}:${index}`)
+    .digest('hex')
+    .slice(0, 12)
+    .toUpperCase();
+
+  return `DEMS-${digest}`;
+};
+
+const ensureDigitalTicketsForOrder = async (orderId) => {
+  const order = await prisma.order.findUnique({
+    where: { id: orderId },
+    include: {
+      order_items: {
+        orderBy: { id: 'asc' }
+      },
+      digital_tickets: {
+        select: { ticket_code: true }
+      }
+    }
+  });
+
+  if (!order) {
+    throw new Error('Order not found while issuing tickets');
+  }
+
+  const existingCodes = new Set(order.digital_tickets.map((ticket) => ticket.ticket_code));
+  const missingTickets = [];
+
+  for (const item of order.order_items) {
+    for (let index = 1; index <= item.quantity; index += 1) {
+      const ticket_code = buildTicketCode(order.id, item.id, index);
+
+      if (!existingCodes.has(ticket_code)) {
+        missingTickets.push({
+          id: generateId(),
+          order_id: order.id,
+          event_id: item.event_id,
+          ticket_type_id: item.ticket_type_id,
+          ticket_code
+        });
+      }
+    }
+  }
+
+  if (missingTickets.length > 0) {
+    await prisma.digitalTicket.createMany({
+      data: missingTickets
+    });
+  }
+
+  return prisma.digitalTicket.findMany({
+    where: { order_id: order.id },
+    include: {
+      event: {
+        select: {
+          id: true,
+          title: true,
+          banner_url: true,
+          city: true,
+          venue_name: true,
+          start_datetime: true,
+          end_datetime: true
+        }
+      },
+      ticket_type: {
+        select: {
+          id: true,
+          tier_name: true,
+          price: true,
+          currency: true
+        }
+      },
+      order: {
+        select: {
+          user_id: true,
+          order_number: true,
+          created_at: true,
+          status: true
+        }
+      }
+    },
+    orderBy: { created_at: 'asc' }
+  });
+};
+
+const mapTicketsForResponse = async (tickets) => {
+  return Promise.all(
+    tickets.map(async (ticket) => {
+      const qr_token = signTicketQrPayload({
+        ticket_id: ticket.id,
+        event_id: ticket.event_id,
+        attendee_id: ticket.order.user_id,
+        ticket_code: ticket.ticket_code
+      });
+
+      const qr_code_data_url = await buildTicketQrDataUrl(qr_token);
+
+      return {
+        id: ticket.id,
+        ticket_code: ticket.ticket_code,
+        qr_token,
+        qr_code_data_url,
+        is_used: ticket.is_used,
+        used_at: ticket.used_at,
+        event: ticket.event,
+        ticket_type: ticket.ticket_type,
+        order_number: ticket.order.order_number,
+        purchase_date: ticket.order.created_at
+      };
+    })
+  );
+};
+
+const createOrUpdateOrderWithItems = async ({
+  order_id,
+  userId,
+  line_items,
+  tx_ref,
+  subtotal,
+  serviceFee,
+  totalAmount
+}) => {
+  await prisma.$transaction(async (tx) => {
+    const order = await tx.order.upsert({
+      where: { order_number: order_id },
+      update: {
+        user_id: userId,
+        subtotal,
+        service_fee: serviceFee,
+        total_amount: totalAmount,
+        status: 'pending',
+        tx_ref,
+        payment_method: 'chapa'
+      },
+      create: {
+        id: generateId(),
+        user_id: userId,
+        order_number: order_id,
+        subtotal,
+        service_fee: serviceFee,
+        total_amount: totalAmount,
+        status: 'pending',
+        tx_ref,
+        payment_method: 'chapa'
+      },
+      select: { id: true }
+    });
+
+    await tx.orderItem.deleteMany({
+      where: { order_id: order.id }
+    });
+
+    await tx.orderItem.createMany({
+      data: line_items.map((item) => ({
+        id: generateId(),
+        order_id: order.id,
+        event_id: item.event_id,
+        ticket_type_id: item.ticket_type_id,
+        quantity: item.quantity,
+        unit_price: item.unit_price,
+        total_price: item.unit_price * item.quantity
+      }))
+    });
+  });
+};
 
 // Initialize payment for ticket purchase
 const initPayment = async (req, res) => {
   try {
-    const { order_id, total_amount, user_email, user_phone, user_name, items } = req.body;
+    const { order_id, total_amount, user_email, user_phone, user_name, line_items } = req.body;
     const userId = req.user.id;
-    
-    console.log('Payment init request:', { order_id, total_amount, user_email, items });
-    
-    if (!user_email) {
-      return res.status(400).json({ success: false, message: 'Email is required' });
+
+    if (!order_id || typeof order_id !== 'string') {
+      return res.status(400).json({ success: false, message: 'Order ID is required' });
     }
-    
-    // Get user ID
-    const [users] = await sequelize.query(
-      'SELECT id FROM users WHERE email = ?',
-      { replacements: [user_email] }
+
+    if (!Array.isArray(line_items) || line_items.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'line_items is required and must include at least one ticket item'
+      });
+    }
+
+    const sanitizedItems = line_items.map((item) => ({
+      event_id: item?.event_id,
+      ticket_type_id: item?.ticket_type_id,
+      quantity: Number(item?.quantity),
+      unit_price: parseAmount(item?.unit_price)
+    }));
+
+    const hasInvalidItem = sanitizedItems.some(
+      (item) => !item.event_id || !item.ticket_type_id || !Number.isInteger(item.quantity) || item.quantity < 1
     );
-    
-    if (users.length === 0) {
+
+    if (hasInvalidItem) {
+      return res.status(400).json({
+        success: false,
+        message: 'Each line item must include event_id, ticket_type_id, and quantity >= 1'
+      });
+    }
+
+    const uniqueTicketTypeIds = [...new Set(sanitizedItems.map((item) => item.ticket_type_id))];
+    const ticketTypes = await prisma.ticketType.findMany({
+      where: {
+        id: { in: uniqueTicketTypeIds },
+        is_active: true
+      },
+      select: {
+        id: true,
+        event_id: true,
+        price: true,
+        remaining_quantity: true
+      }
+    });
+
+    if (ticketTypes.length !== uniqueTicketTypeIds.length) {
+      return res.status(400).json({
+        success: false,
+        message: 'One or more ticket types are invalid or inactive'
+      });
+    }
+
+    const ticketTypeMap = new Map(ticketTypes.map((ticketType) => [ticketType.id, ticketType]));
+    let subtotal = 0;
+
+    for (const item of sanitizedItems) {
+      const ticketType = ticketTypeMap.get(item.ticket_type_id);
+
+      if (!ticketType || ticketType.event_id !== item.event_id) {
+        return res.status(400).json({
+          success: false,
+          message: 'Ticket type does not belong to the provided event'
+        });
+      }
+
+      if (item.quantity > ticketType.remaining_quantity) {
+        return res.status(400).json({
+          success: false,
+          message: `Not enough tickets available for ticket type ${item.ticket_type_id}`
+        });
+      }
+
+      item.unit_price = Number(ticketType.price);
+      subtotal += item.unit_price * item.quantity;
+    }
+
+    const serviceFee = subtotal * SERVICE_FEE_RATE;
+    const computedTotal = subtotal + serviceFee;
+    const providedTotal = parseAmount(total_amount);
+
+    if (providedTotal > 0 && Math.abs(providedTotal - computedTotal) > 0.01) {
+      return res.status(400).json({
+        success: false,
+        message: 'Total amount does not match line items'
+      });
+    }
+
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true, email: true, full_name: true, phone: true }
+    });
+
+    if (!user) {
       return res.status(400).json({ success: false, message: 'User not found' });
     }
-    
-    // Generate unique transaction reference
-    const tx_ref = `TICKET-${Date.now()}-${crypto.randomBytes(8).toString('hex')}`;
-    
-    // Calculate totals
-    const subtotal = total_amount - (total_amount * 0.1);
-    const serviceFee = total_amount * 0.1;
-    
-    // Create order
-    await sequelize.query(
-      `INSERT INTO orders (id, user_id, order_number, subtotal, service_fee, total_amount, status, tx_ref, created_at)
-       VALUES (REPLACE(UUID(), '-', ''), ?, ?, ?, ?, ?, 'pending', ?, NOW())`,
-      { replacements: [userId, order_id, subtotal, serviceFee, total_amount, tx_ref] }
-    );
-    
-    // Get the order ID
-    const [newOrder] = await sequelize.query(
-      'SELECT id FROM orders WHERE order_number = ?',
-      { replacements: [order_id] }
-    );
-    const orderDbId = newOrder[0]?.id;
-    
-    // Save order items
-    if (items && items.length > 0) {
-      for (const item of items) {
-        await sequelize.query(
-          `INSERT INTO order_items (id, order_id, ticket_type_id, quantity, unit_price, subtotal)
-           VALUES (REPLACE(UUID(), '-', ''), ?, ?, ?, ?, ?)`,
-          { replacements: [orderDbId, item.ticket_type_id, item.quantity, item.unit_price, item.subtotal] }
-        );
-      }
+
+    const payerEmail = user_email || user.email;
+
+    if (!payerEmail) {
+      return res.status(400).json({ success: false, message: 'Email is required' });
     }
-    
-    // Split name for Chapa
-    const nameParts = (user_name || 'DEMS User').split(' ');
+
+    const tx_ref = `TICKET-${Date.now()}-${crypto.randomBytes(8).toString('hex')}`;
+
+    await createOrUpdateOrderWithItems({
+      order_id,
+      userId,
+      line_items: sanitizedItems,
+      tx_ref,
+      subtotal,
+      serviceFee,
+      totalAmount: computedTotal
+    });
+
+    const nameParts = (user_name || user.full_name || 'DEMS User').split(' ');
     const first_name = nameParts[0];
     const last_name = nameParts.slice(1).join(' ') || 'User';
-    
-    // Initialize Chapa payment
+
     const paymentResult = await initializePayment({
-      amount: total_amount,
-      email: user_email,
-      first_name: first_name,
-      last_name: last_name,
-      phone_number: user_phone || '0912345678',
-      tx_ref: tx_ref,
+      amount: computedTotal,
+      email: payerEmail,
+      first_name,
+      last_name,
+      phone_number: user_phone || user.phone || '0912345678',
+      tx_ref,
       title: 'DEMS Tickets',
       description: `Ticket purchase - Order ${order_id}`
     });
-    
+
     if (paymentResult.success && paymentResult.checkout_url) {
-      res.json({
+      return res.json({
         success: true,
         checkout_url: paymentResult.checkout_url,
-        tx_ref: tx_ref
-      });
-    } else {
-      res.status(400).json({
-        success: false,
-        message: paymentResult.message || 'Payment initialization failed'
+        tx_ref,
+        order_total: computedTotal
       });
     }
+
+    return res.status(400).json({
+      success: false,
+      message: paymentResult.message || 'Payment initialization failed'
+    });
   } catch (error) {
     console.error('Init payment error:', error);
-    res.status(500).json({ success: false, message: error.message });
+    return res.status(500).json({ success: false, message: error.message });
   }
 };
 
@@ -95,118 +337,137 @@ const initPayment = async (req, res) => {
 const verifyPayment = async (req, res) => {
   try {
     const { tx_ref } = req.query;
-    
-    console.log('Verifying payment for tx_ref:', tx_ref);
-    
+
     if (!tx_ref) {
       return res.status(400).json({ success: false, message: 'Transaction reference required' });
     }
-    
-    // Check in orders table
-    let [orders] = await sequelize.query(
-      'SELECT * FROM orders WHERE tx_ref = ?',
-      { replacements: [tx_ref] }
-    );
-    
-    if (orders.length === 0) {
-      return res.json({ 
-        success: false, 
-        status: 'not_found', 
-        message: 'Transaction not found' 
+
+    const order = await prisma.order.findUnique({
+      where: { tx_ref },
+      include: {
+        order_items: true
+      }
+    });
+
+    if (!order) {
+      const payment = await prisma.platformFeePayment.findUnique({
+        where: { tx_ref }
       });
-    }
-    
-    const order = orders[0];
-    
-    if (order.status === 'paid') {
-      return res.json({
-        success: true,
-        status: 'completed',
-        message: 'Payment verified successfully',
-        order_number: order.order_number
-      });
-    }
-    
-    // Verify with Chapa
-    const verification = await chapaVerifyPayment(tx_ref);
-    
-    if (verification.success) {
-      // Update order status
-      await sequelize.query(
-        `UPDATE orders SET status = 'paid', paid_at = NOW() WHERE tx_ref = ?`,
-        { replacements: [tx_ref] }
-      );
-      
-      // Get order items to update ticket quantities
-      const [orderItems] = await sequelize.query(
-        `SELECT oi.*, tt.event_id, tt.tier_name 
-         FROM order_items oi
-         JOIN ticket_types tt ON oi.ticket_type_id = tt.id
-         WHERE oi.order_id = ?`,
-        { replacements: [order.id] }
-      );
-      
-      // Update ticket quantities and create digital tickets
-      for (const item of orderItems) {
-        // Update remaining quantity in ticket_types
-        await sequelize.query(
-          `UPDATE ticket_types SET remaining_quantity = remaining_quantity - ? WHERE id = ?`,
-          { replacements: [item.quantity, item.ticket_type_id] }
-        );
-        
-        // Create digital tickets for each ticket purchased
-        for (let i = 0; i < item.quantity; i++) {
-          const ticketCode = `DEMS-${Date.now()}-${crypto.randomBytes(8).toString('hex')}`;
-          await sequelize.query(
-            `INSERT INTO digital_tickets (id, order_id, event_id, ticket_type_id, ticket_code, qr_payload, purchase_date, status)
-             VALUES (REPLACE(UUID(), '-', ''), ?, ?, ?, ?, ?, NOW(), 'active')`,
-            { replacements: [order.id, item.event_id, item.ticket_type_id, ticketCode, JSON.stringify({ code: ticketCode })] }
-          );
-        }
-        
-        // Also update event_attendance_stats for live stats
-        await sequelize.query(`
-          INSERT INTO event_attendance_stats (id, event_id, tickets_sold_total, checked_in_total, normal_sold, vip_sold, vvip_sold)
-          VALUES (REPLACE(UUID(), '-', ''), ?, ?, 0, 
-            CASE WHEN ? = 'Normal' THEN ? ELSE 0 END,
-            CASE WHEN ? = 'VIP' THEN ? ELSE 0 END,
-            CASE WHEN ? = 'VVIP' THEN ? ELSE 0 END
-          )
-          ON DUPLICATE KEY UPDATE
-            tickets_sold_total = tickets_sold_total + ?,
-            normal_sold = normal_sold + (CASE WHEN ? = 'Normal' THEN ? ELSE 0 END),
-            vip_sold = vip_sold + (CASE WHEN ? = 'VIP' THEN ? ELSE 0 END),
-            vvip_sold = vvip_sold + (CASE WHEN ? = 'VVIP' THEN ? ELSE 0 END)
-        `, { 
-          replacements: [
-            item.event_id, item.quantity,
-            item.tier_name, item.quantity,
-            item.tier_name, item.quantity,
-            item.tier_name, item.quantity,
-            item.quantity,
-            item.tier_name, item.quantity,
-            item.tier_name, item.quantity,
-            item.tier_name, item.quantity
-          ] 
+
+      if (!payment) {
+        return res.json({
+          success: false,
+          status: 'not_found',
+          message: 'Transaction not found'
         });
       }
-      
+
+      if (payment.status === 'completed') {
+        return res.json({
+          success: true,
+          status: 'completed',
+          message: 'Payment verified successfully'
+        });
+      }
+
+      const verification = await chapaVerifyPayment(tx_ref);
+
+      if (verification.success) {
+        await prisma.platformFeePayment.update({
+          where: { tx_ref },
+          data: {
+            status: 'completed',
+            completed_at: new Date()
+          }
+        });
+
+        return res.json({
+          success: true,
+          status: 'completed',
+          message: 'Payment verified successfully'
+        });
+      }
+
+      return res.json({
+        success: false,
+        status: verification.status,
+        message: verification.message || 'Payment verification failed'
+      });
+    }
+
+    if (!order.order_items.length) {
+      return res.status(400).json({
+        success: false,
+        message: 'Order is missing ticket items. Please retry checkout.'
+      });
+    }
+
+    let finalOrderStatus = order.status;
+
+    if (order.status !== 'paid') {
+      const verification = await chapaVerifyPayment(tx_ref);
+
+      if (!verification.success) {
+        return res.json({
+          success: false,
+          status: 'pending',
+          message: 'Payment not completed'
+        });
+      }
+
+      await prisma.$transaction(async (tx) => {
+        await tx.order.update({
+          where: { tx_ref },
+          data: {
+            status: 'paid',
+            paid_at: new Date()
+          }
+        });
+
+        for (const item of order.order_items) {
+          await tx.ticketType.update({
+            where: { id: item.ticket_type_id },
+            data: {
+              remaining_quantity: {
+                decrement: item.quantity
+              }
+            }
+          });
+        }
+      });
+
+      finalOrderStatus = 'paid';
+    }
+
+    const issuedTickets = await ensureDigitalTicketsForOrder(order.id);
+    const ticketPayload = await mapTicketsForResponse(issuedTickets);
+
+    if (finalOrderStatus === 'paid') {
       return res.json({
         success: true,
         status: 'completed',
         message: 'Payment verified successfully',
-        order_number: order.order_number
+        order_number: order.order_number,
+        tickets: ticketPayload
       });
     }
-    
-    res.json({
+
+    return res.json({
       success: false,
       status: 'pending',
       message: 'Payment not completed'
     });
   } catch (error) {
     console.error('Verify payment error:', error);
-    res.status(500).json({ success: false, message: error.message });
+
+    if (error?.code === 'P2025') {
+      return res.status(409).json({
+        success: false,
+        message: 'Ticket stock changed while verifying payment. Please retry checkout.'
+      });
+    }
+
+    return res.status(500).json({ success: false, message: error.message });
   }
 };
 

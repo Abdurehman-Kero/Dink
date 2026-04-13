@@ -2,16 +2,22 @@ const errorHandler = (err, req, res, next) => {
   let statusCode = res.statusCode === 200 ? 500 : res.statusCode;
   let message = err.message;
   
-  // Sequelize validation error
-  if (err.name === 'SequelizeValidationError') {
+  // Prisma validation errors
+  if (err.name === 'PrismaClientValidationError') {
     statusCode = 400;
-    message = err.errors.map(e => e.message).join(', ');
+    message = 'Invalid request payload';
   }
   
-  // Sequelize unique constraint error
-  if (err.name === 'SequelizeUniqueConstraintError') {
+  // Prisma unique constraint error
+  if (err.code === 'P2002') {
     statusCode = 400;
-    message = err.errors.map(e => `${e.path} already exists`).join(', ');
+    message = 'A record with this value already exists';
+  }
+
+  // Prisma not found error
+  if (err.code === 'P2025') {
+    statusCode = 404;
+    message = 'Requested resource not found';
   }
   
   // JWT errors

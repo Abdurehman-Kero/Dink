@@ -25,7 +25,11 @@ export function PaymentVerify() {
 
   const verifyPayment = async (tx_ref) => {
     try {
-      const response = await fetch(`${API_URL}/payments/verify?tx_ref=${tx_ref}`);
+      const response = await fetch(`${API_URL}/payments/verify?tx_ref=${tx_ref}`, {
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem('authToken')}`
+        }
+      });
       const data = await response.json();
       
       if (data.success && data.status === 'completed') {

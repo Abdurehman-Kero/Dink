@@ -1,35 +1,45 @@
-const { sequelize } = require('../config/database');
+const { prisma } = require('../config/database');
 const bcrypt = require('bcryptjs');
+const { sendOrganizerApproval } = require('../services/notificationService');
+const { sendAccountStatusEmail } = require('../services/emailService');
+const { generateId } = require('../utils/id');
+
+const SUPER_ADMIN_EMAIL = 'nexussphere0974@gmail.com';
 
 // Get all pending organizer applications
 const getPendingOrganizers = async (req, res) => {
   try {
-    console.log('Fetching pending organizers...');
-    
-    const [pending] = await sequelize.query(`
-      SELECT 
-        u.id, 
-        u.full_name, 
-        u.email, 
-        u.phone as phone_number, 
-        u.created_at as submitted_at,
-        COALESCE(op.organization_name, 'N/A') as organization_name,
-        COALESCE(op.organization_type, 'individual') as organization_type,
-        op.website_url, 
-        COALESCE(op.bio, 'No bio provided') as bio,
-        op.tax_id_number, 
-        op.business_registration_number,
-        op.social_linkedin, 
-        op.social_instagram, 
-        op.social_x, 
-        op.work_email
-      FROM users u
-      LEFT JOIN organizer_profiles op ON u.id = op.user_id
-      WHERE u.role_id = 2 AND u.status = 'pending'
-      ORDER BY u.created_at DESC
-    `);
-    
-    console.log(`Found ${pending.length} pending organizers`);
+    const users = await prisma.user.findMany({
+      where: {
+        role_id: 2,
+        status: 'pending'
+      },
+      include: {
+        organizer_profile: true
+      },
+      orderBy: {
+        created_at: 'desc'
+      }
+    });
+
+    const pending = users.map((user) => ({
+      id: user.id,
+      full_name: user.full_name,
+      email: user.email,
+      phone_number: user.phone,
+      submitted_at: user.created_at,
+      organization_name: user.organizer_profile?.organization_name || 'N/A',
+      organization_type: user.organizer_profile?.organization_type || 'individual',
+      website_url: user.organizer_profile?.website_url || null,
+      bio: user.organizer_profile?.bio || 'No bio provided',
+      tax_id_number: user.organizer_profile?.tax_id_number || null,
+      business_registration_number: user.organizer_profile?.business_registration_number || null,
+      social_linkedin: user.organizer_profile?.social_linkedin || null,
+      social_instagram: user.organizer_profile?.social_instagram || null,
+      social_x: user.organizer_profile?.social_x || null,
+      work_email: user.organizer_profile?.work_email || null
+    }));
+
     res.json({ success: true, pending });
   } catch (error) {
     console.error('Get pending organizers error:', error);
@@ -41,29 +51,57 @@ const getPendingOrganizers = async (req, res) => {
 const approveOrganizer = async (req, res) => {
   try {
     const { userId } = req.params;
-    console.log(`Approving organizer: ${userId}`);
-    
-    await sequelize.query(
-      'UPDATE users SET status = "active", updated_at = NOW() WHERE id = ? AND role_id = 2',
-      { replacements: [userId] }
-    );
-    
-    await sequelize.query(`
-      INSERT INTO organizer_profiles (user_id, verification_status, approved_by_admin_id, approved_at, organization_name, organization_type, bio)
-      VALUES (?, 'approved', ?, NOW(), 'Pending Update', 'individual', 'Pending Update')
-      ON DUPLICATE KEY UPDATE 
-        verification_status = 'approved', 
-        approved_by_admin_id = ?, 
-        approved_at = NOW()
-    `, { replacements: [userId, req.user.id, req.user.id] });
-    
-    const [user] = await sequelize.query(
-      'SELECT email, full_name FROM users WHERE id = ?',
-      { replacements: [userId] }
-    );
-    
-    console.log(`Organizer ${userId} approved successfully`);
-    res.json({ success: true, message: 'Organizer approved successfully', email: user[0]?.email });
+    const updated = await prisma.user.updateMany({
+      where: {
+        id: userId,
+        role_id: 2
+      },
+      data: {
+        status: 'active'
+      }
+    });
+
+    if (updated.count === 0) {
+      return res.status(404).json({ success: false, message: 'Organizer not found' });
+    }
+
+    await prisma.organizerProfile.upsert({
+      where: { user_id: userId },
+      update: {
+        verification_status: 'approved',
+        approved_by_admin_id: req.user.id,
+        approved_at: new Date()
+      },
+      create: {
+        user_id: userId,
+        verification_status: 'approved',
+        approved_by_admin_id: req.user.id,
+        approved_at: new Date(),
+        organization_name: 'Pending Update',
+        organization_type: 'individual',
+        bio: 'Pending Update'
+      }
+    });
+
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        email: true,
+        full_name: true
+      }
+    });
+
+    if (user) {
+      sendOrganizerApproval(user, 'approved').catch((mailError) => {
+        console.error('Organizer approved email failed:', mailError.message || mailError);
+      });
+
+      sendAccountStatusEmail(user, 'active').catch((mailError) => {
+        console.error('Account status email failed:', mailError.message || mailError);
+      });
+    }
+
+    res.json({ success: true, message: 'Organizer approved successfully', email: user?.email });
   } catch (error) {
     console.error('Approve organizer error:', error);
     res.status(500).json({ success: false, message: 'Server error', error: error.message });
@@ -75,21 +113,54 @@ const rejectOrganizer = async (req, res) => {
   try {
     const { userId } = req.params;
     const { reason } = req.body;
-    console.log(`Rejecting organizer: ${userId}, reason: ${reason}`);
-    
-    await sequelize.query(
-      'UPDATE users SET status = "rejected", updated_at = NOW() WHERE id = ? AND role_id = 2',
-      { replacements: [userId] }
-    );
-    
-    await sequelize.query(`
-      INSERT INTO organizer_profiles (user_id, verification_status, approved_by_admin_id, organization_name, organization_type, bio)
-      VALUES (?, 'rejected', ?, 'Rejected', 'individual', 'Rejected')
-      ON DUPLICATE KEY UPDATE 
-        verification_status = 'rejected', 
-        approved_by_admin_id = ?
-    `, { replacements: [userId, req.user.id, req.user.id] });
-    
+    const updated = await prisma.user.updateMany({
+      where: {
+        id: userId,
+        role_id: 2
+      },
+      data: {
+        status: 'rejected'
+      }
+    });
+
+    if (updated.count === 0) {
+      return res.status(404).json({ success: false, message: 'Organizer not found' });
+    }
+
+    await prisma.organizerProfile.upsert({
+      where: { user_id: userId },
+      update: {
+        verification_status: 'rejected',
+        approved_by_admin_id: req.user.id
+      },
+      create: {
+        user_id: userId,
+        verification_status: 'rejected',
+        approved_by_admin_id: req.user.id,
+        organization_name: 'Rejected',
+        organization_type: 'individual',
+        bio: 'Rejected'
+      }
+    });
+
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        email: true,
+        full_name: true
+      }
+    });
+
+    if (user) {
+      sendOrganizerApproval(user, 'rejected', reason || '').catch((mailError) => {
+        console.error('Organizer rejected email failed:', mailError.message || mailError);
+      });
+
+      sendAccountStatusEmail(user, 'rejected', reason || '').catch((mailError) => {
+        console.error('Account status email failed:', mailError.message || mailError);
+      });
+    }
+
     res.json({ success: true, message: 'Organizer rejected', reason });
   } catch (error) {
     console.error('Reject organizer error:', error);
@@ -100,15 +171,28 @@ const rejectOrganizer = async (req, res) => {
 // Get all organizers (approved)
 const getAllOrganizers = async (req, res) => {
   try {
-    const [organizers] = await sequelize.query(`
-      SELECT u.id, u.full_name, u.email, u.status, u.created_at,
-             COALESCE(op.organization_name, 'N/A') as organization_name,
-             COALESCE(op.verification_status, 'pending') as verification_status
-      FROM users u
-      LEFT JOIN organizer_profiles op ON u.id = op.user_id
-      WHERE u.role_id = 2
-      ORDER BY u.created_at DESC
-    `);
+    const users = await prisma.user.findMany({
+      where: {
+        role_id: 2
+      },
+      include: {
+        organizer_profile: true
+      },
+      orderBy: {
+        created_at: 'desc'
+      }
+    });
+
+    const organizers = users.map((user) => ({
+      id: user.id,
+      full_name: user.full_name,
+      email: user.email,
+      status: user.status,
+      created_at: user.created_at,
+      organization_name: user.organizer_profile?.organization_name || 'N/A',
+      verification_status: user.organizer_profile?.verification_status || 'pending'
+    }));
+
     res.json({ success: true, organizers });
   } catch (error) {
     console.error('Get organizers error:', error);
@@ -119,20 +203,25 @@ const getAllOrganizers = async (req, res) => {
 // Get dashboard stats
 const getDashboardStats = async (req, res) => {
   try {
-    const [totalUsers] = await sequelize.query('SELECT COUNT(*) as count FROM users');
-    const [totalOrganizers] = await sequelize.query('SELECT COUNT(*) as count FROM users WHERE role_id = 2');
-    const [totalAttendees] = await sequelize.query('SELECT COUNT(*) as count FROM users WHERE role_id = 3');
-    const [totalEvents] = await sequelize.query('SELECT COUNT(*) as count FROM events');
-    const [pendingApprovals] = await sequelize.query('SELECT COUNT(*) as count FROM users WHERE role_id = 2 AND status = "pending"');
-    
+    const totalUsers = await prisma.user.count();
+    const totalOrganizers = await prisma.user.count({ where: { role_id: 2 } });
+    const totalAttendees = await prisma.user.count({ where: { role_id: 3 } });
+    const totalEvents = await prisma.event.count();
+    const pendingApprovals = await prisma.user.count({
+      where: {
+        role_id: 2,
+        status: 'pending'
+      }
+    });
+
     res.json({
       success: true,
       stats: {
-        total_users: totalUsers[0]?.count || 0,
-        total_organizers: totalOrganizers[0]?.count || 0,
-        total_attendees: totalAttendees[0]?.count || 0,
-        total_events: totalEvents[0]?.count || 0,
-        pending_approvals: pendingApprovals[0]?.count || 0,
+        total_users: totalUsers || 0,
+        total_organizers: totalOrganizers || 0,
+        total_attendees: totalAttendees || 0,
+        total_events: totalEvents || 0,
+        pending_approvals: pendingApprovals || 0,
         live_events: 0,
         total_revenue: 0,
         total_tickets_sold: 0
@@ -152,16 +241,22 @@ const getDashboardStats = async (req, res) => {
 const getAdmins = async (req, res) => {
   try {
     // Only super admin can view all admins
-    if (req.user.email !== 'nexussphere0974@gmail.com') {
+    if (req.user.email !== SUPER_ADMIN_EMAIL) {
       return res.status(403).json({ message: 'Only super admin can access this' });
     }
-    
-    const [admins] = await sequelize.query(`
-      SELECT id, full_name, email, status, created_at 
-      FROM users 
-      WHERE role_id = 1
-      ORDER BY created_at DESC
-    `);
+
+    const admins = await prisma.user.findMany({
+      where: { role_id: 1 },
+      select: {
+        id: true,
+        full_name: true,
+        email: true,
+        status: true,
+        created_at: true
+      },
+      orderBy: { created_at: 'desc' }
+    });
+
     res.json({ success: true, admins });
   } catch (error) {
     console.error('Get admins error:', error);
@@ -173,31 +268,44 @@ const getAdmins = async (req, res) => {
 const createAdmin = async (req, res) => {
   try {
     // Only super admin can create new admins
-    if (req.user.email !== 'nexussphere0974@gmail.com') {
+    if (req.user.email !== SUPER_ADMIN_EMAIL) {
       return res.status(403).json({ message: 'Only super admin can create new admins' });
     }
-    
+
     const { full_name, email, password, phone } = req.body;
-    
+
+    if (!full_name || !email || !password) {
+      return res.status(400).json({ message: 'full_name, email, and password are required' });
+    }
+
     // Check if user exists
-    const [existingUser] = await sequelize.query(
-      'SELECT id FROM users WHERE email = ?',
-      { replacements: [email] }
-    );
-    
-    if (existingUser.length > 0) {
+    const existingUser = await prisma.user.findUnique({
+      where: { email },
+      select: { id: true }
+    });
+
+    if (existingUser) {
       return res.status(400).json({ message: 'User with this email already exists' });
     }
-    
+
     // Hash password
     const hashedPassword = await bcrypt.hash(password, 10);
-    
+
     // Create admin user (role_id = 1)
-    await sequelize.query(`
-      INSERT INTO users (id, role_id, full_name, email, password_hash, user_name, status, email_verified)
-      VALUES (REPLACE(UUID(), '-', ''), 1, ?, ?, ?, ?, 'active', true)
-    `, { replacements: [full_name, email, hashedPassword, email.split('@')[0]] });
-    
+    await prisma.user.create({
+      data: {
+        id: generateId(),
+        role_id: 1,
+        full_name,
+        email,
+        password_hash: hashedPassword,
+        phone: phone || null,
+        user_name: email.split('@')[0],
+        status: 'active',
+        email_verified: true
+      }
+    });
+
     res.status(201).json({ success: true, message: `Admin created successfully!` });
   } catch (error) {
     console.error('Create admin error:', error);
@@ -208,18 +316,32 @@ const createAdmin = async (req, res) => {
 // Update admin status
 const updateAdminStatus = async (req, res) => {
   try {
-    if (req.user.email !== 'nexussphere0974@gmail.com') {
+    if (req.user.email !== SUPER_ADMIN_EMAIL) {
       return res.status(403).json({ message: 'Only super admin can do this' });
     }
-    
+
     const { adminId } = req.params;
     const { status } = req.body;
-    
-    await sequelize.query(
-      'UPDATE users SET status = ? WHERE id = ? AND role_id = 1',
-      { replacements: [status, adminId] }
-    );
-    
+
+    const allowedStatuses = new Set(['active', 'pending', 'suspended', 'deleted', 'rejected']);
+    if (!allowedStatuses.has(status)) {
+      return res.status(400).json({ message: 'Invalid status value' });
+    }
+
+    const updated = await prisma.user.updateMany({
+      where: {
+        id: adminId,
+        role_id: 1
+      },
+      data: {
+        status
+      }
+    });
+
+    if (updated.count === 0) {
+      return res.status(404).json({ message: 'Admin not found' });
+    }
+
     res.json({ success: true, message: 'Admin status updated' });
   } catch (error) {
     console.error('Update admin error:', error);
@@ -230,24 +352,33 @@ const updateAdminStatus = async (req, res) => {
 // Delete admin
 const deleteAdmin = async (req, res) => {
   try {
-    if (req.user.email !== 'nexussphere0974@gmail.com') {
+    if (req.user.email !== SUPER_ADMIN_EMAIL) {
       return res.status(403).json({ message: 'Only super admin can do this' });
     }
-    
+
     const { adminId } = req.params;
-    
+
     // Check if trying to delete super admin
-    const [admin] = await sequelize.query(
-      'SELECT email FROM users WHERE id = ? AND role_id = 1',
-      { replacements: [adminId] }
-    );
-    
-    if (admin.length > 0 && admin[0].email === 'nexussphere0974@gmail.com') {
+    const admin = await prisma.user.findFirst({
+      where: {
+        id: adminId,
+        role_id: 1
+      },
+      select: {
+        email: true
+      }
+    });
+
+    if (!admin) {
+      return res.status(404).json({ message: 'Admin not found' });
+    }
+
+    if (admin.email === SUPER_ADMIN_EMAIL) {
       return res.status(400).json({ message: 'Cannot delete super admin account' });
     }
-    
-    await sequelize.query('DELETE FROM users WHERE id = ? AND role_id = 1', { replacements: [adminId] });
-    
+
+    await prisma.user.delete({ where: { id: adminId } });
+
     res.json({ success: true, message: 'Admin deleted' });
   } catch (error) {
     console.error('Delete admin error:', error);

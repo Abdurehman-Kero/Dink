@@ -38,10 +38,10 @@ export function OrganizerSignupPage() {
   });
 
   const organizationTypes = [
-    { value: 'non_profit', label: 'Non-Profit Organization', icon: 'í´' },
-    { value: 'corporate', label: 'Corporate / Business', icon: 'í¿¢' },
-    { value: 'individual', label: 'Individual / Freelancer', icon: 'í±¤' },
-    { value: 'government', label: 'Government Entity', icon: 'í¿›ï¸' }
+    { value: 'non_profit', label: 'Non-Profit Organization', icon: 'NP' },
+    { value: 'corporate', label: 'Corporate / Business', icon: 'CO' },
+    { value: 'individual', label: 'Individual / Freelancer', icon: 'IN' },
+    { value: 'government', label: 'Government Entity', icon: 'GV' }
   ];
 
   const handleChange = (e) => {
@@ -257,7 +257,7 @@ export function OrganizerSignupPage() {
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">Password *</label>
                 <div className="relative">
-                  <input type={showPassword ? 'text' : 'password'} name="password" value={formData.password} onChange={handleChange} required className="w-full px-4 py-3 border border-gray-300 rounded-xl pr-12" placeholder="â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢" />
+                  <input type={showPassword ? 'text' : 'password'} name="password" value={formData.password} onChange={handleChange} required className="w-full px-4 py-3 border border-gray-300 rounded-xl pr-12" placeholder="********" />
                   <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400">
                     {showPassword ? <EyeOff className="size-5" /> : <Eye className="size-5" />}
                   </button>
@@ -267,7 +267,7 @@ export function OrganizerSignupPage() {
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">Confirm Password *</label>
-                <input type={showPassword ? 'text' : 'password'} name="confirm_password" value={formData.confirm_password} onChange={handleChange} required className="w-full px-4 py-3 border border-gray-300 rounded-xl" placeholder="â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢" />
+                <input type={showPassword ? 'text' : 'password'} name="confirm_password" value={formData.confirm_password} onChange={handleChange} required className="w-full px-4 py-3 border border-gray-300 rounded-xl" placeholder="********" />
               </div>
             </div>
           )}

@@ -22,7 +22,10 @@ const apiClient = async (endpoint, options = {}) => {
     const data = await response.json();
     
     if (!response.ok) {
-      throw new Error(data.message || 'Something went wrong');
+      const error = new Error(data.message || 'Something went wrong');
+      error.status = response.status;
+      error.data = data;
+      throw error;
     }
     
     return data;
@@ -116,9 +119,9 @@ export const ticketAPI = {
   
   downloadTicket: (ticketId) => apiClient(`/tickets/${ticketId}/download`),
   
-  scanTicket: (ticketCode) => apiClient('/tickets/scan', {
+  scanTicket: (qrToken, ticketCode) => apiClient('/staff/scan', {
     method: 'POST',
-    body: JSON.stringify({ ticketCode }),
+    body: JSON.stringify({ qr_token: qrToken, ticket_code: ticketCode }),
   }),
 };
 
@@ -148,9 +151,9 @@ export const staffAPI = {
   
   getStaffDashboard: () => apiClient('/staff/dashboard'),
   
-  scanTicket: (ticketCode) => apiClient('/staff/scan', {
+  scanTicket: (qrToken, ticketCode) => apiClient('/staff/scan', {
     method: 'POST',
-    body: JSON.stringify({ ticket_code: ticketCode }),
+    body: JSON.stringify({ qr_token: qrToken, ticket_code: ticketCode }),
   }),
 };
 

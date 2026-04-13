@@ -7,7 +7,7 @@ const path = require('path');
 
 dotenv.config();
 
-const { connectDB } = require('./config/database');
+const { disconnectDB, connectDB } = require('./config/database');
 const { errorHandler } = require('./middleware/errorMiddleware');
 const { limiter } = require('./middleware/rateLimitMiddleware');
 
@@ -22,11 +22,11 @@ const paymentRoutes = require('./routes/paymentRoutes');
 const payoutRoutes = require('./routes/payoutRoutes');
 const platformFeeRoutes = require('./routes/platformFeeRoutes');
 const categoryRoutes = require('./routes/categoryRoutes');
-
-const analyticsRoutes = require("./routes/analyticsRoutes");
+const analyticsRoutes = require('./routes/analyticsRoutes');
 // Admin Management Routes
 const adminEventRoutes = require('./routes/adminEventRoutes');
 const adminCategoryRoutes = require('./routes/adminCategoryRoutes');
+const ticketRoutes = require('./routes/ticketRoutes');
 
 const app = express();
 
@@ -45,9 +45,9 @@ app.use(morgan('dev'));
 app.use(limiter);
 
 // Static Files
-const uploadRoutes = require("./routes/uploadRoutes");
-app.use("/api/upload", uploadRoutes);
-app.use("/uploads", express.static(path.join(__dirname, "uploads")));
+const uploadRoutes = require('./routes/uploadRoutes');
+app.use('/api/upload', uploadRoutes);
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 // Health Check
 app.get('/health', (req, res) => {
   res.status(200).json({ 
@@ -82,11 +82,17 @@ app.use('/api/admin', adminCategoryRoutes);
 // Category Routes (Public)
 app.use('/api/categories', categoryRoutes);
 
+// Organizer analytics
+app.use('/api/analytics', analyticsRoutes);
+
 // Notification Routes
 app.use('/api/notifications', notificationRoutes);
 
 // Review Routes
 app.use('/api/reviews', reviewRoutes);
+
+// Ticket Routes
+app.use('/api/tickets', ticketRoutes);
 
 // Payment Routes (Attendee pays for tickets)
 app.use('/api/payments', paymentRoutes);
@@ -110,19 +116,33 @@ app.use(errorHandler);
 
 // Start Server
 const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => {
-  console.log(`\n��� DEMS Backend is running!`);
-  console.log(`��� URL: http://localhost:${PORT}`);
+const server = app.listen(PORT, () => {
+  console.log(`\nDEMS Backend is running!`);
+  console.log(`URL: http://localhost:${PORT}`);
   console.log(`✅ Health check: http://localhost:${PORT}/health`);
-  console.log(`��� Auth API: http://localhost:${PORT}/api/auth`);
-  console.log(`��� Events API: http://localhost:${PORT}/api/events`);
-  console.log(`��� Staff API: http://localhost:${PORT}/api/staff`);
-  console.log(`��� Admin API: http://localhost:${PORT}/api/admin`);
-  console.log(`��� Notifications API: http://localhost:${PORT}/api/notifications`);
+  console.log(`Auth API: http://localhost:${PORT}/api/auth`);
+  console.log(`Events API: http://localhost:${PORT}/api/events`);
+  console.log(`Staff API: http://localhost:${PORT}/api/staff`);
+  console.log(`Admin API: http://localhost:${PORT}/api/admin`);
+  console.log(`Notifications API: http://localhost:${PORT}/api/notifications`);
   console.log(`⭐ Reviews API: http://localhost:${PORT}/api/reviews`);
-  console.log(`��� Payments API (Attendee → Organizer): http://localhost:${PORT}/api/payments`);
-  console.log(`��� Payouts API (Organizer receives): http://localhost:${PORT}/api/payouts`);
-  console.log(`��� Platform Fee API (Organizer → Admin): http://localhost:${PORT}/api/platform-fee`);
-  console.log(`���️ Categories API: http://localhost:${PORT}/api/categories`);
-  console.log(`��� Environment: ${process.env.NODE_ENV || 'development'}\n`);
+  console.log(`Payments API (Attendee -> Organizer): http://localhost:${PORT}/api/payments`);
+  console.log(`Payouts API (Organizer receives): http://localhost:${PORT}/api/payouts`);
+  console.log(`Platform Fee API (Organizer -> Admin): http://localhost:${PORT}/api/platform-fee`);
+  console.log(`Categories API: http://localhost:${PORT}/api/categories`);
+  console.log(`Analytics API: http://localhost:${PORT}/api/analytics`);
+  console.log(`Environment: ${process.env.NODE_ENV || 'development'}\n`);
 });
+
+const shutdown = async () => {
+  try {
+    await disconnectDB();
+    server.close(() => process.exit(0));
+  } catch (error) {
+    console.error('Error during shutdown:', error.message);
+    process.exit(1);
+  }
+};
+
+process.on('SIGINT', shutdown);
+process.on('SIGTERM', shutdown);

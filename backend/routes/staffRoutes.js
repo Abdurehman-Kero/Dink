@@ -9,6 +9,6 @@ router.get('/members', protect, authorize('organizer', 'admin'), getStaffMembers
 
 // Staff routes
 router.get('/dashboard', protect, getStaffDashboard);
-router.post('/scan', protect, scanTicket);
+router.post('/scan', protect, authorize('staff', 'security', 'admin', 'organizer'), scanTicket);
 
 module.exports = router;

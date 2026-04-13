@@ -15,6 +15,7 @@ import { EventDetailPage } from './pages/event/EventDetailPage';
 import { CheckoutPage } from './pages/checkout/CheckoutPage';
 import { SavedTicketsPage } from './pages/cart/SavedTicketsPage';
 import { MyTicketsPage } from './pages/tickets/MyTicketsPage';
+import { EventsAnalyticsOverview } from "./pages/organizer/EventsAnalyticsOverview";
 import { OrganizerDashboard } from './pages/organizer/OrganizerDashboard';
 import { CreateEventPage } from './pages/organizer/CreateEventPage';
 import { StaffManagementPage } from './pages/organizer/StaffManagementPage';
@@ -58,6 +59,14 @@ function App() {
           <Route path="/payment/verify" element={<PaymentSuccess />} />
           <Route path="/payment/success" element={<PaymentSuccess />} />
           <Route path="/security/scanner" element={<SecurityScannerPage />} />
+          <Route
+            path="/organizer/events-analytics"
+            element={<EventsAnalyticsOverview />}
+          />
+          <Route
+            path="/organizer/analytics/:eventId"
+            element={<EventAnalyticsPage />}
+          />
         </Routes>
       </main>
       <Footer />

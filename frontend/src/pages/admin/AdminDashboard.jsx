@@ -1,14 +1,31 @@
-import { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
-import { 
-  Users, Calendar, DollarSign, TrendingUp, CheckCircle, 
-  XCircle, Clock, Shield, UserCheck, Ticket, Award,
-  Eye, RefreshCw, ChevronRight, Building, Mail, Phone, FileWarning, Scale
-} from 'lucide-react';
-import { useAuth } from '../../contexts/AuthContext';
-import { moderationAPI } from '../../api/client';
+import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
+import {
+  Users,
+  Calendar,
+  DollarSign,
+  TrendingUp,
+  CheckCircle,
+  XCircle,
+  Clock,
+  Shield,
+  UserCheck,
+  Ticket,
+  Award,
+  Eye,
+  RefreshCw,
+  ChevronRight,
+  Building,
+  Mail,
+  Phone,
+  FileWarning,
+  Scale,
+  Plus,
+} from "lucide-react";
+import { useAuth } from "../../contexts/AuthContext";
+import { adminCategoryAPI, moderationAPI } from "../../api/client";
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000/api";
 
 export function AdminDashboard() {
   const { user, logout } = useAuth();
@@ -20,7 +37,7 @@ export function AdminDashboard() {
     live_events: 0,
     pending_approvals: 0,
     total_revenue: 0,
-    total_tickets_sold: 0
+    total_tickets_sold: 0,
   });
   const [pendingOrganizers, setPendingOrganizers] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -32,8 +49,12 @@ export function AdminDashboard() {
   const [selectedAppeal, setSelectedAppeal] = useState(null);
   const [showReportModal, setShowReportModal] = useState(false);
   const [showAppealModal, setShowAppealModal] = useState(false);
-  const [moderationNote, setModerationNote] = useState('');
+  const [moderationNote, setModerationNote] = useState("");
   const [moderationActionLoading, setModerationActionLoading] = useState(false);
+  const [showCreateCategoryModal, setShowCreateCategoryModal] = useState(false);
+  const [categoryForm, setCategoryForm] = useState({ name: "", slug: "" });
+  const [categoryCreateLoading, setCategoryCreateLoading] = useState(false);
+  const [categoryError, setCategoryError] = useState("");
 
   useEffect(() => {
     fetchDashboardData();
@@ -43,45 +64,54 @@ export function AdminDashboard() {
     setLoading(true);
     try {
       // Fetch pending organizers from API
-      const token = localStorage.getItem('authToken');
-      const pendingResponse = await fetch(`${API_URL}/admin/pending-organizers`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
+      const token = localStorage.getItem("authToken");
+      const pendingResponse = await fetch(
+        `${API_URL}/admin/pending-organizers`,
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        },
+      );
       const pendingData = await pendingResponse.json();
-      
+
       if (pendingData.success) {
         setPendingOrganizers(pendingData.pending || []);
-        setStats(prev => ({ ...prev, pending_approvals: pendingData.pending?.length || 0 }));
+        setStats((prev) => ({
+          ...prev,
+          pending_approvals: pendingData.pending?.length || 0,
+        }));
       }
-      
+
       // Get total users count
       const usersResponse = await fetch(`${API_URL}/admin/users`, {
-        headers: { 'Authorization': `Bearer ${token}` }
+        headers: { Authorization: `Bearer ${token}` },
       });
       const usersData = await usersResponse.json();
-      
+
       if (usersData.success) {
-        setStats(prev => ({
+        setStats((prev) => ({
           ...prev,
           total_users: usersData.total || 0,
           total_organizers: usersData.organizers || 0,
-          total_attendees: usersData.attendees || 0
+          total_attendees: usersData.attendees || 0,
         }));
       }
 
       try {
         const [reportsData, appealsData] = await Promise.all([
-          moderationAPI.getAdminReports('pending'),
-          moderationAPI.getAdminAppeals('pending')
+          moderationAPI.getAdminReports("pending"),
+          moderationAPI.getAdminAppeals("pending"),
         ]);
 
         setReports(reportsData.reports || []);
         setAppeals(appealsData.appeals || []);
       } catch (moderationError) {
-        console.error('Error fetching moderation dashboard data:', moderationError);
+        console.error(
+          "Error fetching moderation dashboard data:",
+          moderationError,
+        );
       }
     } catch (error) {
-      console.error('Error fetching dashboard:', error);
+      console.error("Error fetching dashboard:", error);
     } finally {
       setLoading(false);
     }
@@ -89,13 +119,13 @@ export function AdminDashboard() {
 
   const openReportModal = (report) => {
     setSelectedReport(report);
-    setModerationNote('');
+    setModerationNote("");
     setShowReportModal(true);
   };
 
   const openAppealModal = (appeal) => {
     setSelectedAppeal(appeal);
-    setModerationNote('');
+    setModerationNote("");
     setShowAppealModal(true);
   };
 
@@ -112,13 +142,13 @@ export function AdminDashboard() {
     try {
       await moderationAPI.decideAdminReport(selectedReport.id, {
         action,
-        note: moderationNote.trim() || undefined
+        note: moderationNote.trim() || undefined,
       });
 
       alert(`Report ${action}ed successfully.`);
       setShowReportModal(false);
       setSelectedReport(null);
-      setModerationNote('');
+      setModerationNote("");
       fetchDashboardData();
     } catch (decisionError) {
       alert(decisionError.message || `Failed to ${action} report`);
@@ -140,13 +170,13 @@ export function AdminDashboard() {
     try {
       await moderationAPI.decideAdminAppeal(selectedAppeal.id, {
         action,
-        note: moderationNote.trim() || undefined
+        note: moderationNote.trim() || undefined,
       });
 
       alert(`Appeal ${action}d successfully.`);
       setShowAppealModal(false);
       setSelectedAppeal(null);
-      setModerationNote('');
+      setModerationNote("");
       fetchDashboardData();
     } catch (decisionError) {
       alert(decisionError.message || `Failed to ${action} appeal`);
@@ -156,52 +186,111 @@ export function AdminDashboard() {
   };
 
   const handleApprove = async (userId) => {
-    if (confirm('Approve this organizer?')) {
+    if (confirm("Approve this organizer?")) {
       try {
-        const token = localStorage.getItem('authToken');
+        const token = localStorage.getItem("authToken");
         const response = await fetch(`${API_URL}/admin/approve/${userId}`, {
-          method: 'PUT',
+          method: "PUT",
           headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`
-          }
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
         });
         const data = await response.json();
         if (data.success) {
-          setPendingOrganizers(prev => prev.filter(org => org.id !== userId));
-          setStats(prev => ({ ...prev, pending_approvals: prev.pending_approvals - 1, total_organizers: prev.total_organizers + 1 }));
+          setPendingOrganizers((prev) =>
+            prev.filter((org) => org.id !== userId),
+          );
+          setStats((prev) => ({
+            ...prev,
+            pending_approvals: prev.pending_approvals - 1,
+            total_organizers: prev.total_organizers + 1,
+          }));
           alert(`Organizer approved! Email sent to ${data.email}`);
           fetchDashboardData();
         }
       } catch {
-        alert('Error approving organizer');
+        alert("Error approving organizer");
       }
     }
   };
 
   const handleReject = async (userId) => {
-    const reason = prompt('Reason for rejection:');
+    const reason = prompt("Reason for rejection:");
     if (reason) {
       try {
-        const token = localStorage.getItem('authToken');
+        const token = localStorage.getItem("authToken");
         const response = await fetch(`${API_URL}/admin/reject/${userId}`, {
-          method: 'PUT',
+          method: "PUT",
           headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
           },
-          body: JSON.stringify({ reason })
+          body: JSON.stringify({ reason }),
         });
         const data = await response.json();
         if (data.success) {
-          setPendingOrganizers(prev => prev.filter(org => org.id !== userId));
-          setStats(prev => ({ ...prev, pending_approvals: prev.pending_approvals - 1 }));
+          setPendingOrganizers((prev) =>
+            prev.filter((org) => org.id !== userId),
+          );
+          setStats((prev) => ({
+            ...prev,
+            pending_approvals: prev.pending_approvals - 1,
+          }));
           alert(`Organizer rejected. Reason: ${reason}`);
           fetchDashboardData();
         }
       } catch {
-        alert('Error rejecting organizer');
+        alert("Error rejecting organizer");
       }
+    }
+  };
+
+  const toSlug = (value) =>
+    value
+      .toLowerCase()
+      .trim()
+      .replace(/[^a-z0-9\s-]/g, "")
+      .replace(/\s+/g, "-")
+      .replace(/-+/g, "-");
+
+  const openCreateCategoryModal = () => {
+    setCategoryForm({ name: "", slug: "" });
+    setCategoryError("");
+    setShowCreateCategoryModal(true);
+  };
+
+  const handleCategoryNameChange = (value) => {
+    setCategoryForm((prev) => {
+      const next = { ...prev, name: value };
+      if (!prev.slug || prev.slug === toSlug(prev.name)) {
+        next.slug = toSlug(value);
+      }
+      return next;
+    });
+  };
+
+  const handleCreateCategory = async (e) => {
+    e.preventDefault();
+    setCategoryError("");
+
+    const name = categoryForm.name.trim();
+    const slug = toSlug(categoryForm.slug || categoryForm.name);
+
+    if (!name || !slug) {
+      setCategoryError("Name and slug are required.");
+      return;
+    }
+
+    setCategoryCreateLoading(true);
+    try {
+      await adminCategoryAPI.create({ name, slug });
+      setShowCreateCategoryModal(false);
+      alert("Category created successfully.");
+    } catch (error) {
+      setCategoryError(error.message || "Failed to create category");
+    } finally {
+      setCategoryCreateLoading(false);
     }
   };
 
@@ -216,55 +305,130 @@ export function AdminDashboard() {
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="fixed top-16 left-0 right-0 h-1 flex z-40">
-        <div className="flex-1 bg-green-600" /><div className="flex-1 bg-yellow-400" /><div className="flex-1 bg-red-600" />
+        <div className="flex-1 bg-green-600" />
+        <div className="flex-1 bg-yellow-400" />
+        <div className="flex-1 bg-red-600" />
       </div>
 
       <div className="max-w-7xl mx-auto px-4 py-8">
         {/* Header */}
         <div className="flex justify-between items-center mb-8">
           <div>
-            <h1 className="text-3xl font-bold text-gray-900">Admin Dashboard</h1>
-            <p className="text-gray-600">Welcome back, {user?.full_name?.split(' ')[0] || 'Admin'}!</p>
+            <h1 className="text-3xl font-bold text-gray-900">
+              Admin Dashboard
+            </h1>
+            <p className="text-gray-600">
+              Welcome back, {user?.full_name?.split(" ")[0] || "Admin"}!
+            </p>
           </div>
           <div className="flex gap-3">
-            <button onClick={fetchDashboardData} className="px-4 py-2 bg-white border rounded-xl flex items-center gap-2"><RefreshCw className="size-4" /> Refresh</button>
-            <button onClick={logout} className="px-4 py-2 bg-red-50 text-red-600 rounded-xl">Logout</button>
+            <button
+              onClick={fetchDashboardData}
+              className="px-4 py-2 bg-white border rounded-xl flex items-center gap-2"
+            >
+              <RefreshCw className="size-4" /> Refresh
+            </button>
+            <button
+              onClick={logout}
+              className="px-4 py-2 bg-red-50 text-red-600 rounded-xl"
+            >
+              Logout
+            </button>
           </div>
         </div>
 
         {/* Stats Cards */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
-          <div className="bg-white rounded-2xl p-5 shadow-sm border-l-4 border-green-500"><Users className="size-8 text-green-500 mb-2" /><p className="text-sm text-gray-600">Total Users</p><p className="text-2xl font-bold">{stats.total_users}</p></div>
-          <div className="bg-white rounded-2xl p-5 shadow-sm border-l-4 border-blue-500"><Calendar className="size-8 text-blue-500 mb-2" /><p className="text-sm text-gray-600">Events</p><p className="text-2xl font-bold">{stats.total_events}</p></div>
-          <div className="bg-white rounded-2xl p-5 shadow-sm border-l-4 border-yellow-500"><Ticket className="size-8 text-yellow-500 mb-2" /><p className="text-sm text-gray-600">Tickets Sold</p><p className="text-2xl font-bold">{stats.total_tickets_sold}</p></div>
-          <div className="bg-white rounded-2xl p-5 shadow-sm border-l-4 border-purple-500"><DollarSign className="size-8 text-purple-500 mb-2" /><p className="text-sm text-gray-600">Revenue</p><p className="text-2xl font-bold">ETB {stats.total_revenue.toLocaleString()}</p></div>
+          <div className="bg-white rounded-2xl p-5 shadow-sm border-l-4 border-green-500">
+            <Users className="size-8 text-green-500 mb-2" />
+            <p className="text-sm text-gray-600">Total Users</p>
+            <p className="text-2xl font-bold">{stats.total_users}</p>
+          </div>
+          <div className="bg-white rounded-2xl p-5 shadow-sm border-l-4 border-blue-500">
+            <Calendar className="size-8 text-blue-500 mb-2" />
+            <p className="text-sm text-gray-600">Events</p>
+            <p className="text-2xl font-bold">{stats.total_events}</p>
+          </div>
+          <div className="bg-white rounded-2xl p-5 shadow-sm border-l-4 border-yellow-500">
+            <Ticket className="size-8 text-yellow-500 mb-2" />
+            <p className="text-sm text-gray-600">Tickets Sold</p>
+            <p className="text-2xl font-bold">{stats.total_tickets_sold}</p>
+          </div>
+          <div className="bg-white rounded-2xl p-5 shadow-sm border-l-4 border-purple-500">
+            <DollarSign className="size-8 text-purple-500 mb-2" />
+            <p className="text-sm text-gray-600">Revenue</p>
+            <p className="text-2xl font-bold">
+              ETB {stats.total_revenue.toLocaleString()}
+            </p>
+          </div>
         </div>
 
         {/* Pending Approvals Section */}
         <div className="bg-white rounded-2xl shadow-sm mb-8">
           <div className="px-6 py-4 border-b flex justify-between items-center">
             <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2">
-              <Clock className="size-5 text-orange-500" /> Pending Organizer Approvals
-              {stats.pending_approvals > 0 && <span className="bg-orange-100 text-orange-700 px-2 py-0.5 rounded-full text-xs">{stats.pending_approvals}</span>}
+              <Clock className="size-5 text-orange-500" /> Pending Organizer
+              Approvals
+              {stats.pending_approvals > 0 && (
+                <span className="bg-orange-100 text-orange-700 px-2 py-0.5 rounded-full text-xs">
+                  {stats.pending_approvals}
+                </span>
+              )}
             </h2>
-            <Link to="/admin/approvals" className="text-sm text-green-600 hover:text-green-700">View All</Link>
+            <Link
+              to="/admin/approvals"
+              className="text-sm text-green-600 hover:text-green-700"
+            >
+              View All
+            </Link>
           </div>
           <div className="p-6">
             {pendingOrganizers.length === 0 ? (
-              <div className="text-center py-8"><CheckCircle className="size-12 text-green-400 mx-auto mb-3" /><p className="text-gray-500">No pending approvals</p></div>
+              <div className="text-center py-8">
+                <CheckCircle className="size-12 text-green-400 mx-auto mb-3" />
+                <p className="text-gray-500">No pending approvals</p>
+              </div>
             ) : (
               <div className="space-y-4">
-                {pendingOrganizers.slice(0, 3).map(org => (
-                  <div key={org.id} className="border rounded-xl p-4 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                {pendingOrganizers.slice(0, 3).map((org) => (
+                  <div
+                    key={org.id}
+                    className="border rounded-xl p-4 flex flex-col md:flex-row justify-between items-start md:items-center gap-4"
+                  >
                     <div>
-                      <h3 className="font-semibold text-gray-900">{org.organization_name}</h3>
-                      <p className="text-sm text-gray-500">{org.full_name} - {org.email}</p>
-                      <p className="text-xs text-gray-400">Submitted: {new Date(org.submitted_at).toLocaleDateString()}</p>
+                      <h3 className="font-semibold text-gray-900">
+                        {org.organization_name}
+                      </h3>
+                      <p className="text-sm text-gray-500">
+                        {org.full_name} - {org.email}
+                      </p>
+                      <p className="text-xs text-gray-400">
+                        Submitted:{" "}
+                        {new Date(org.submitted_at).toLocaleDateString()}
+                      </p>
                     </div>
                     <div className="flex gap-2">
-                      <button onClick={() => { setSelectedApp(org); setShowModal(true); }} className="px-3 py-1.5 border rounded-lg text-sm">View</button>
-                      <button onClick={() => handleApprove(org.id)} className="px-3 py-1.5 bg-green-600 text-white rounded-lg text-sm flex items-center gap-1"><CheckCircle className="size-4" /> Approve</button>
-                      <button onClick={() => handleReject(org.id)} className="px-3 py-1.5 border border-red-500 text-red-600 rounded-lg text-sm flex items-center gap-1"><XCircle className="size-4" /> Reject</button>
+                      <button
+                        onClick={() => {
+                          setSelectedApp(org);
+                          setShowModal(true);
+                        }}
+                        className="px-3 py-1.5 border rounded-lg text-sm"
+                      >
+                        View
+                      </button>
+                      <button
+                        onClick={() => handleApprove(org.id)}
+                        className="px-3 py-1.5 bg-green-600 text-white rounded-lg text-sm flex items-center gap-1"
+                      >
+                        <CheckCircle className="size-4" /> Approve
+                      </button>
+                      <button
+                        onClick={() => handleReject(org.id)}
+                        className="px-3 py-1.5 border border-red-500 text-red-600 rounded-lg text-sm flex items-center gap-1"
+                      >
+                        <XCircle className="size-4" /> Reject
+                      </button>
                     </div>
                   </div>
                 ))}
@@ -278,19 +442,34 @@ export function AdminDashboard() {
           <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
             <div className="px-6 py-4 border-b flex items-center justify-between">
               <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2">
-                <FileWarning className="size-5 text-orange-500" /> Pending Event Reports
+                <FileWarning className="size-5 text-orange-500" /> Pending Event
+                Reports
               </h2>
-              <span className="text-xs px-2 py-1 rounded-full bg-orange-100 text-orange-700">{reports.length}</span>
+              <span className="text-xs px-2 py-1 rounded-full bg-orange-100 text-orange-700">
+                {reports.length}
+              </span>
             </div>
             <div className="divide-y">
               {reports.length === 0 ? (
-                <p className="px-6 py-8 text-sm text-gray-500">No pending event reports.</p>
+                <p className="px-6 py-8 text-sm text-gray-500">
+                  No pending event reports.
+                </p>
               ) : (
                 reports.slice(0, 5).map((report) => (
                   <div key={report.id} className="px-6 py-4">
-                    <p className="text-sm font-semibold text-gray-900">{report.event?.title || 'Reported event'}</p>
-                    <p className="text-xs text-gray-500 mt-1">Reason: {report.reason}</p>
-                    <p className="text-xs text-gray-400 mt-1">Organizer: {report.subject_user?.organizer_profile?.organization_name || report.subject_user?.full_name || 'N/A'}</p>
+                    <p className="text-sm font-semibold text-gray-900">
+                      {report.event?.title || "Reported event"}
+                    </p>
+                    <p className="text-xs text-gray-500 mt-1">
+                      Reason: {report.reason}
+                    </p>
+                    <p className="text-xs text-gray-400 mt-1">
+                      Organizer:{" "}
+                      {report.subject_user?.organizer_profile
+                        ?.organization_name ||
+                        report.subject_user?.full_name ||
+                        "N/A"}
+                    </p>
                     <button
                       type="button"
                       onClick={() => openReportModal(report)}
@@ -307,18 +486,29 @@ export function AdminDashboard() {
           <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
             <div className="px-6 py-4 border-b flex items-center justify-between">
               <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2">
-                <Scale className="size-5 text-amber-600" /> Pending Organizer Appeals
+                <Scale className="size-5 text-amber-600" /> Pending Organizer
+                Appeals
               </h2>
-              <span className="text-xs px-2 py-1 rounded-full bg-amber-100 text-amber-700">{appeals.length}</span>
+              <span className="text-xs px-2 py-1 rounded-full bg-amber-100 text-amber-700">
+                {appeals.length}
+              </span>
             </div>
             <div className="divide-y">
               {appeals.length === 0 ? (
-                <p className="px-6 py-8 text-sm text-gray-500">No pending organizer appeals.</p>
+                <p className="px-6 py-8 text-sm text-gray-500">
+                  No pending organizer appeals.
+                </p>
               ) : (
                 appeals.slice(0, 5).map((appeal) => (
                   <div key={appeal.id} className="px-6 py-4">
-                    <p className="text-sm font-semibold text-gray-900">{appeal.appellant?.organizer_profile?.organization_name || appeal.appellant?.full_name || 'Organizer'}</p>
-                    <p className="text-xs text-gray-500 mt-1 line-clamp-2">{appeal.message}</p>
+                    <p className="text-sm font-semibold text-gray-900">
+                      {appeal.appellant?.organizer_profile?.organization_name ||
+                        appeal.appellant?.full_name ||
+                        "Organizer"}
+                    </p>
+                    <p className="text-xs text-gray-500 mt-1 line-clamp-2">
+                      {appeal.message}
+                    </p>
                     <button
                       type="button"
                       onClick={() => openAppealModal(appeal)}
@@ -334,12 +524,42 @@ export function AdminDashboard() {
         </div>
 
         <div className="bg-white rounded-2xl shadow-sm">
-          <div className="px-6 py-4 border-b"><h2 className="text-xl font-bold">Quick Actions</h2></div>
+          <div className="px-6 py-4 border-b">
+            <h2 className="text-xl font-bold">Quick Actions</h2>
+          </div>
           <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-3">
-            <Link to="/admin/approvals" className="flex items-center justify-between p-3 bg-gray-50 rounded-xl hover:bg-gray-100"><span>Approve Organizers</span><ChevronRight className="size-4" /></Link>
-            <Link to="/admin/users" className="flex items-center justify-between p-3 bg-gray-50 rounded-xl hover:bg-gray-100"><span> Manage Users</span><ChevronRight className="size-4" /></Link>
-            <Link to="/admin/events" className="flex items-center justify-between p-3 bg-gray-50 rounded-xl hover:bg-gray-100"><span> Manage Events</span><ChevronRight className="size-4" /></Link>
-            <Link to="/admin/categories" className="flex items-center justify-between p-3 bg-gray-50 rounded-xl hover:bg-gray-100"><span> Categories</span><ChevronRight className="size-4" /></Link>
+            <Link
+              to="/admin/approvals"
+              className="flex items-center justify-between p-3 bg-gray-50 rounded-xl hover:bg-gray-100"
+            >
+              <span>Approve Organizers</span>
+              <ChevronRight className="size-4" />
+            </Link>
+            <Link
+              to="/admin/users"
+              className="flex items-center justify-between p-3 bg-gray-50 rounded-xl hover:bg-gray-100"
+            >
+              <span> Manage Users</span>
+              <ChevronRight className="size-4" />
+            </Link>
+            <Link
+              to="/admin/events"
+              className="flex items-center justify-between p-3 bg-gray-50 rounded-xl hover:bg-gray-100"
+            >
+              <span> Manage Events</span>
+              <ChevronRight className="size-4" />
+            </Link>
+            <button
+              type="button"
+              onClick={openCreateCategoryModal}
+              className="flex items-center justify-between p-3 bg-gray-50 rounded-xl hover:bg-gray-100"
+            >
+              <span className="flex items-center gap-2">
+                <Plus className="size-4" />
+                Create Category
+              </span>
+              <ChevronRight className="size-4" />
+            </button>
           </div>
         </div>
       </div>
@@ -349,13 +569,77 @@ export function AdminDashboard() {
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl max-w-lg w-full max-h-[80vh] overflow-y-auto">
             <div className="p-6">
-              <div className="flex justify-between items-center mb-4"><h2 className="text-xl font-bold">Application Details</h2><button onClick={() => setShowModal(false)} className="text-gray-400 hover:text-gray-600">X</button></div>
-              <div className="space-y-4">
-                <div><h3 className="font-semibold text-gray-900 mb-2">Organization</h3><p><strong>Name:</strong> {selectedApp.organization_name}</p><p><strong>Type:</strong> {selectedApp.organization_type}</p><p><strong>Bio:</strong> {selectedApp.bio}</p></div>
-                <div><h3 className="font-semibold text-gray-900 mb-2">Contact</h3><p><strong>Name:</strong> {selectedApp.full_name}</p><p><strong>Email:</strong> {selectedApp.email}</p><p><strong>Phone:</strong> {selectedApp.phone_number}</p></div>
-                {selectedApp.website_url && <div><p><strong>Website:</strong> <a href={`https://${selectedApp.website_url}`} target="_blank" className="text-green-600">{selectedApp.website_url}</a></p></div>}
+              <div className="flex justify-between items-center mb-4">
+                <h2 className="text-xl font-bold">Application Details</h2>
+                <button
+                  onClick={() => setShowModal(false)}
+                  className="text-gray-400 hover:text-gray-600"
+                >
+                  X
+                </button>
               </div>
-              <div className="flex gap-3 mt-6 pt-4 border-t"><button onClick={() => { handleApprove(selectedApp.id); setShowModal(false); }} className="flex-1 py-2 bg-green-600 text-white rounded-lg">Approve</button><button onClick={() => { handleReject(selectedApp.id); setShowModal(false); }} className="flex-1 py-2 border border-red-500 text-red-600 rounded-lg">Reject</button></div>
+              <div className="space-y-4">
+                <div>
+                  <h3 className="font-semibold text-gray-900 mb-2">
+                    Organization
+                  </h3>
+                  <p>
+                    <strong>Name:</strong> {selectedApp.organization_name}
+                  </p>
+                  <p>
+                    <strong>Type:</strong> {selectedApp.organization_type}
+                  </p>
+                  <p>
+                    <strong>Bio:</strong> {selectedApp.bio}
+                  </p>
+                </div>
+                <div>
+                  <h3 className="font-semibold text-gray-900 mb-2">Contact</h3>
+                  <p>
+                    <strong>Name:</strong> {selectedApp.full_name}
+                  </p>
+                  <p>
+                    <strong>Email:</strong> {selectedApp.email}
+                  </p>
+                  <p>
+                    <strong>Phone:</strong> {selectedApp.phone_number}
+                  </p>
+                </div>
+                {selectedApp.website_url && (
+                  <div>
+                    <p>
+                      <strong>Website:</strong>{" "}
+                      <a
+                        href={`https://${selectedApp.website_url}`}
+                        target="_blank"
+                        className="text-green-600"
+                      >
+                        {selectedApp.website_url}
+                      </a>
+                    </p>
+                  </div>
+                )}
+              </div>
+              <div className="flex gap-3 mt-6 pt-4 border-t">
+                <button
+                  onClick={() => {
+                    handleApprove(selectedApp.id);
+                    setShowModal(false);
+                  }}
+                  className="flex-1 py-2 bg-green-600 text-white rounded-lg"
+                >
+                  Approve
+                </button>
+                <button
+                  onClick={() => {
+                    handleReject(selectedApp.id);
+                    setShowModal(false);
+                  }}
+                  className="flex-1 py-2 border border-red-500 text-red-600 rounded-lg"
+                >
+                  Reject
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -364,18 +648,44 @@ export function AdminDashboard() {
       {showReportModal && selectedReport && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl w-full max-w-lg p-6">
-            <h3 className="text-xl font-bold text-gray-900 mb-2">Event Report Details</h3>
-            <p className="text-sm text-gray-500 mb-4">Review the report and choose to ban organizer or reject.</p>
+            <h3 className="text-xl font-bold text-gray-900 mb-2">
+              Event Report Details
+            </h3>
+            <p className="text-sm text-gray-500 mb-4">
+              Review the report and choose to ban organizer or reject.
+            </p>
 
             <div className="space-y-2 text-sm mb-4">
-              <p><span className="font-semibold">Event:</span> {selectedReport.event?.title || 'N/A'}</p>
-              <p><span className="font-semibold">Reporter:</span> {selectedReport.reporter?.full_name || 'N/A'}</p>
-              <p><span className="font-semibold">Organizer:</span> {selectedReport.subject_user?.organizer_profile?.organization_name || selectedReport.subject_user?.full_name || 'N/A'}</p>
-              <p><span className="font-semibold">Reason:</span> {selectedReport.reason}</p>
-              {selectedReport.details && <p><span className="font-semibold">Details:</span> {selectedReport.details}</p>}
+              <p>
+                <span className="font-semibold">Event:</span>{" "}
+                {selectedReport.event?.title || "N/A"}
+              </p>
+              <p>
+                <span className="font-semibold">Reporter:</span>{" "}
+                {selectedReport.reporter?.full_name || "N/A"}
+              </p>
+              <p>
+                <span className="font-semibold">Organizer:</span>{" "}
+                {selectedReport.subject_user?.organizer_profile
+                  ?.organization_name ||
+                  selectedReport.subject_user?.full_name ||
+                  "N/A"}
+              </p>
+              <p>
+                <span className="font-semibold">Reason:</span>{" "}
+                {selectedReport.reason}
+              </p>
+              {selectedReport.details && (
+                <p>
+                  <span className="font-semibold">Details:</span>{" "}
+                  {selectedReport.details}
+                </p>
+              )}
             </div>
 
-            <label className="block text-sm font-medium text-gray-700 mb-1">Decision Note (optional)</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Decision Note (optional)
+            </label>
             <textarea
               rows={3}
               value={moderationNote}
@@ -394,7 +704,7 @@ export function AdminDashboard() {
               </button>
               <button
                 type="button"
-                onClick={() => handleReportDecision('reject')}
+                onClick={() => handleReportDecision("reject")}
                 disabled={moderationActionLoading}
                 className="flex-1 px-4 py-2 border border-gray-300 rounded-xl text-gray-700 disabled:opacity-50"
               >
@@ -402,7 +712,7 @@ export function AdminDashboard() {
               </button>
               <button
                 type="button"
-                onClick={() => handleReportDecision('ban')}
+                onClick={() => handleReportDecision("ban")}
                 disabled={moderationActionLoading}
                 className="flex-1 px-4 py-2 bg-red-600 text-white rounded-xl disabled:opacity-50"
               >
@@ -416,16 +726,34 @@ export function AdminDashboard() {
       {showAppealModal && selectedAppeal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl w-full max-w-lg p-6">
-            <h3 className="text-xl font-bold text-gray-900 mb-2">Organizer Appeal Details</h3>
-            <p className="text-sm text-gray-500 mb-4">Approve to unban organizer, or reject to keep the ban active.</p>
+            <h3 className="text-xl font-bold text-gray-900 mb-2">
+              Organizer Appeal Details
+            </h3>
+            <p className="text-sm text-gray-500 mb-4">
+              Approve to unban organizer, or reject to keep the ban active.
+            </p>
 
             <div className="space-y-2 text-sm mb-4">
-              <p><span className="font-semibold">Organizer:</span> {selectedAppeal.appellant?.organizer_profile?.organization_name || selectedAppeal.appellant?.full_name || 'N/A'}</p>
-              <p><span className="font-semibold">Ban reason:</span> {selectedAppeal.ban?.reason || 'N/A'}</p>
-              <p><span className="font-semibold">Appeal:</span> {selectedAppeal.message}</p>
+              <p>
+                <span className="font-semibold">Organizer:</span>{" "}
+                {selectedAppeal.appellant?.organizer_profile
+                  ?.organization_name ||
+                  selectedAppeal.appellant?.full_name ||
+                  "N/A"}
+              </p>
+              <p>
+                <span className="font-semibold">Ban reason:</span>{" "}
+                {selectedAppeal.ban?.reason || "N/A"}
+              </p>
+              <p>
+                <span className="font-semibold">Appeal:</span>{" "}
+                {selectedAppeal.message}
+              </p>
             </div>
 
-            <label className="block text-sm font-medium text-gray-700 mb-1">Decision Note (optional)</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Decision Note (optional)
+            </label>
             <textarea
               rows={3}
               value={moderationNote}
@@ -444,7 +772,7 @@ export function AdminDashboard() {
               </button>
               <button
                 type="button"
-                onClick={() => handleAppealDecision('reject')}
+                onClick={() => handleAppealDecision("reject")}
                 disabled={moderationActionLoading}
                 className="flex-1 px-4 py-2 border border-gray-300 rounded-xl text-gray-700 disabled:opacity-50"
               >
@@ -452,13 +780,83 @@ export function AdminDashboard() {
               </button>
               <button
                 type="button"
-                onClick={() => handleAppealDecision('approve')}
+                onClick={() => handleAppealDecision("approve")}
                 disabled={moderationActionLoading}
                 className="flex-1 px-4 py-2 bg-green-600 text-white rounded-xl disabled:opacity-50"
               >
                 Approve & Unban
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {showCreateCategoryModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl w-full max-w-md p-6">
+            <h3 className="text-xl font-bold text-gray-900 mb-2">
+              Create Category
+            </h3>
+            <p className="text-sm text-gray-500 mb-4">
+              Add a new event category for organizers and attendees.
+            </p>
+
+            <form onSubmit={handleCreateCategory} className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Category Name
+                </label>
+                <input
+                  type="text"
+                  value={categoryForm.name}
+                  onChange={(e) => handleCategoryNameChange(e.target.value)}
+                  className="w-full px-3 py-2 border rounded-xl"
+                  placeholder="e.g. Music"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Slug
+                </label>
+                <input
+                  type="text"
+                  value={categoryForm.slug}
+                  onChange={(e) =>
+                    setCategoryForm((prev) => ({
+                      ...prev,
+                      slug: toSlug(e.target.value),
+                    }))
+                  }
+                  className="w-full px-3 py-2 border rounded-xl"
+                  placeholder="music"
+                  required
+                />
+              </div>
+
+              {categoryError && (
+                <p className="text-sm text-red-600">{categoryError}</p>
+              )}
+
+              <div className="pt-2 flex gap-3">
+                <button
+                  type="button"
+                  onClick={() => setShowCreateCategoryModal(false)}
+                  className="flex-1 px-4 py-2 border rounded-xl"
+                  disabled={categoryCreateLoading}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="flex-1 px-4 py-2 bg-green-600 text-white rounded-xl disabled:opacity-50"
+                  disabled={categoryCreateLoading}
+                >
+                  {categoryCreateLoading ? "Creating..." : "Create"}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

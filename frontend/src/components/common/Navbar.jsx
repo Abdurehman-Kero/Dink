@@ -158,9 +158,7 @@ export function Navbar() {
             <Link to="/organizer/payouts" className={`text-sm flex items-center gap-2 px-4 py-2 rounded-lg transition ${location.pathname === '/organizer/payouts' ? 'text-green-600 bg-green-50 dark:bg-green-900/20' : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'}`}>
               <Wallet className="size-4" /> Payouts
             </Link>
-            <Link to="/organizer/analytics" className={`text-sm flex items-center gap-2 px-4 py-2 rounded-lg transition ${location.pathname === '/organizer/analytics' ? 'text-green-600 bg-green-50 dark:bg-green-900/20' : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'}`}>
-              <BarChart3 className="size-4" /> Analytics
-            </Link>
+          
           </div>
           
           <div className="flex items-center gap-4">
@@ -182,9 +180,7 @@ export function Navbar() {
                     <Link to="/profile" onClick={() => setShowProfileMenu(false)} className="flex items-center gap-3 px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800">
                       <User className="size-4" /> Profile Settings
                     </Link>
-                    <Link to="/organizer/analytics" onClick={() => setShowProfileMenu(false)} className="flex items-center gap-3 px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800">
-                      <TrendingUp className="size-4" /> Analytics
-                    </Link>
+                    
                     <Link to="/organizer/payouts" onClick={() => setShowProfileMenu(false)} className="flex items-center gap-3 px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800">
                       <DollarSign className="size-4" /> Payouts
                     </Link>

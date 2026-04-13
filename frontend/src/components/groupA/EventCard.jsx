@@ -2,45 +2,10 @@ import { Link } from 'react-router-dom';
 import { Calendar, MapPin, Star, Heart, Users, Eye } from 'lucide-react';
 import { useState, useEffect } from 'react';
 
-// Simple toast function (can be replaced with a proper toast library later)
-const showToast = (message, linkText, linkUrl) => {
-  // Remove existing toast if any
-  const existingToast = document.querySelector('.custom-toast');
-  if (existingToast) existingToast.remove();
-  
-  // Create toast element
-  const toast = document.createElement('div');
-  toast.className = 'custom-toast fixed bottom-24 right-6 z-50 bg-white rounded-xl shadow-lg p-4 border-l-4 border-green-500 animate-slideUp min-w-[280px]';
-  toast.innerHTML = `
-    <div class="flex items-start gap-3">
-      <svg class="w-5 h-5 text-green-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
-      </svg>
-      <div class="flex-1">
-        <p class="text-sm font-semibold text-gray-900">${message}</p>
-        <a href="${linkUrl}" class="text-xs text-green-600 font-medium hover:text-green-700 mt-1 inline-block">${linkText} →</a>
-      </div>
-      <button class="text-gray-400 hover:text-gray-600" onclick="this.parentElement.parentElement.remove()">
-        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
-        </svg>
-      </button>
-    </div>
-  `;
-  
-  document.body.appendChild(toast);
-  
-  // Auto remove after 5 seconds
-  setTimeout(() => {
-    if (toast && toast.remove) toast.remove();
-  }, 5000);
-};
-
 export function EventCard({ event, onSave, isSaved: propIsSaved }) {
   const [isSaved, setIsSaved] = useState(propIsSaved || false);
   const [imageError, setImageError] = useState(false);
   
-  // Check if event is saved from localStorage on mount
   useEffect(() => {
     const savedEvents = JSON.parse(localStorage.getItem('savedEvents') || '[]');
     setIsSaved(savedEvents.includes(event.id));
@@ -55,21 +20,24 @@ export function EventCard({ event, onSave, isSaved: propIsSaved }) {
     });
   };
 
+  // Get the banner URL - check multiple possible field names
+  const bannerUrl = event.banner_url || event.image_url || event.thumbnail_url;
+  
+  // Fallback image if none provided or if image fails to load
+  const fallbackImage = 'https://images.unsplash.com/photo-1540575467063-178a50c2df87';
+
   const handleSaveEvent = (e) => {
-    e.preventDefault(); // Prevent navigation to event detail
-    e.stopPropagation(); // Stop event bubbling
+    e.preventDefault();
+    e.stopPropagation();
     
     const savedEvents = JSON.parse(localStorage.getItem('savedEvents') || '[]');
     let newSavedEvents;
     
     if (isSaved) {
-      // Remove from saved
       newSavedEvents = savedEvents.filter(id => id !== event.id);
       localStorage.setItem('savedEvents', JSON.stringify(newSavedEvents));
       setIsSaved(false);
-      showToast('Event removed from saved', 'Browse Events', '/discover');
     } else {
-      // Add to saved
       newSavedEvents = [...savedEvents, event.id];
       localStorage.setItem('savedEvents', JSON.stringify(newSavedEvents));
       setIsSaved(true);
@@ -85,41 +53,36 @@ export function EventCard({ event, onSave, isSaved: propIsSaved }) {
           event: {
             id: event.id,
             title: event.title,
-            image_url: event.image_url
+            image_url: bannerUrl || fallbackImage
           },
           ticket_type: {
             id: 'default',
             tier_name: event.ticket_type_name || 'General Admission',
-            price: event.min_price || 0
+            price: event.min_price || 250
           },
           quantity: 1,
-          subtotal: event.min_price || 0,
-          service_fee: (event.min_price || 0) * 0.1,
-          total_price: (event.min_price || 0) * 1.1,
+          subtotal: event.min_price || 250,
+          service_fee: (event.min_price || 250) * 0.1,
+          total_price: (event.min_price || 250) * 1.1,
           reserved_at: new Date().toISOString(),
           expires_at: new Date(Date.now() + 15 * 60 * 1000).toISOString()
         };
         checkoutItems.push(newItem);
         localStorage.setItem('checkoutReservations', JSON.stringify(checkoutItems));
       }
-      
-      showToast(`"${event.title.split('|')[0]}" saved to your tickets`, 'View Saved Tickets', '/saved-tickets');
     }
     
-    // Call parent onSave callback if provided
     if (onSave) {
       onSave(event.id, !isSaved);
     }
   };
-
-  const placeholderImage = 'https://images.unsplash.com/photo-1540575467063-178a50c2df87?w=400&h=200&fit=crop';
 
   return (
     <div className="group bg-white dark:bg-gray-900 rounded-xl overflow-hidden shadow-md hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1 border border-gray-100 dark:border-gray-800">
       {/* Event Image */}
       <Link to={`/event/${event.id}`} className="block relative h-48 overflow-hidden">
         <img 
-          src={!imageError ? (event.image_url || placeholderImage) : placeholderImage}
+          src={!imageError && bannerUrl ? bannerUrl : fallbackImage}
           alt={event.title}
           className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
           onError={() => setImageError(true)}
@@ -136,7 +99,7 @@ export function EventCard({ event, onSave, isSaved: propIsSaved }) {
         {/* Save Button */}
         <button 
           onClick={handleSaveEvent}
-          className="absolute top-3 right-3 p-2 bg-white/90 backdrop-blur-sm rounded-full hover:bg-red-50 transition-all group/btn z-10"
+          className="absolute top-3 right-3 p-2 bg-white/90 backdrop-blur-sm rounded-full hover:bg-red-50 transition group/btn z-10"
           aria-label={isSaved ? 'Remove from saved' : 'Save event'}
         >
           <Heart className={`size-4 transition-colors ${isSaved ? 'fill-red-500 text-red-500' : 'text-gray-600 group-hover/btn:text-red-500'}`} />
@@ -169,7 +132,7 @@ export function EventCard({ event, onSave, isSaved: propIsSaved }) {
         <div className="space-y-1.5 text-xs text-gray-600 dark:text-gray-400">
           <div className="flex items-center gap-1.5">
             <Calendar className="size-3 text-green-600" />
-            <span>{formatDate(event.start_date || event.start_datetime)}</span>
+            <span>{formatDate(event.start_datetime || event.start_date)}</span>
           </div>
           <div className="flex items-center gap-1.5">
             <MapPin className="size-3 text-red-500" />

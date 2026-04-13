@@ -1,8 +1,10 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Calendar, MapPin, Clock, DollarSign, ImageIcon, ArrowLeft, Upload, X, Ticket, Link as LinkIcon } from 'lucide-react';
+import { Calendar, MapPin, Clock, DollarSign, ImageIcon, ArrowLeft, Upload, X, Ticket, Link as LinkIcon, Loader, CheckCircle } from 'lucide-react';
 import { eventAPI } from '../../api/client';
 import { useAuth } from '../../contexts/AuthContext';
+
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
 export function CreateEventPage() {
   const navigate = useNavigate();
@@ -11,6 +13,10 @@ export function CreateEventPage() {
   const [bannerPreview, setBannerPreview] = useState(null);
   const [imageSource, setImageSource] = useState('url');
   const [imageUrl, setImageUrl] = useState('');
+  const [uploading, setUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [uploadSuccess, setUploadSuccess] = useState(false);
+  const [uploadError, setUploadError] = useState('');
   const [formData, setFormData] = useState({
     title: '',
     category_id: '',
@@ -53,29 +59,101 @@ export function CreateEventPage() {
     setImageUrl(url);
     setBannerPreview(url);
     setFormData(prev => ({ ...prev, banner_url: url }));
-    console.log('Banner URL set to:', url);
+    setUploadSuccess(false);
+    setUploadError('');
   };
 
-  const handleImageUpload = (e) => {
+  const handleImageUpload = async (e) => {
     const file = e.target.files?.[0];
-    if (file) {
-      const localUrl = URL.createObjectURL(file);
-      setBannerPreview(localUrl);
-      setFormData(prev => ({ ...prev, banner_url: localUrl }));
-      console.log('Banner image set to local URL:', localUrl);
+    if (!file) return;
+    
+    // Reset states
+    setUploadError('');
+    setUploadSuccess(false);
+    setUploadProgress(0);
+    
+    // Validate file type
+    if (!file.type.startsWith('image/')) {
+      setUploadError('Please upload an image file (JPEG, PNG, GIF, WEBP)');
+      return;
     }
+    
+    // Validate file size (max 5MB)
+    if (file.size > 5 * 1024 * 1024) {
+      setUploadError('Image size should be less than 5MB');
+      return;
+    }
+    
+    setUploading(true);
+    
+    // Create local preview immediately
+    const localPreview = URL.createObjectURL(file);
+    setBannerPreview(localPreview);
+    
+    try {
+      const token = localStorage.getItem('authToken');
+      const formDataObj = new FormData();
+      formDataObj.append('image', file);
+      
+      // Simulate progress for better UX
+      const interval = setInterval(() => {
+        setUploadProgress(prev => Math.min(prev + 10, 90));
+      }, 200);
+      
+      const response = await fetch(`${API_URL}/upload/event-image`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        },
+        body: formDataObj
+      });
+      
+      clearInterval(interval);
+      
+      const data = await response.json();
+      
+      if (data.success) {
+        setUploadProgress(100);
+        setUploadSuccess(true);
+        // Use the permanent URL from the server
+        const permanentUrl = data.imageUrl;
+        setFormData(prev => ({ ...prev, banner_url: permanentUrl }));
+        setBannerPreview(permanentUrl);
+        console.log('Image uploaded successfully:', permanentUrl);
+      } else {
+        setUploadError(data.message || 'Upload failed');
+        // Keep the local preview but show error
+        setBannerPreview(localPreview);
+      }
+    } catch (error) {
+      console.error('Upload error:', error);
+      setUploadError('Failed to upload image. Please try again.');
+      // Keep the local preview
+      setBannerPreview(localPreview);
+    } finally {
+      setTimeout(() => {
+        setUploading(false);
+      }, 500);
+    }
+  };
+
+  const handleRemoveImage = () => {
+    setBannerPreview(null);
+    setFormData(prev => ({ ...prev, banner_url: '' }));
+    setImageUrl('');
+    setUploadSuccess(false);
+    setUploadError('');
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setLoading(true);
-
-    // Validate banner URL
+    
     if (!formData.banner_url) {
       alert('Please add a banner image (URL or upload)');
-      setLoading(false);
       return;
     }
+    
+    setLoading(true);
 
     const validTicketTypes = formData.ticket_types.filter(t => t.price && t.capacity);
     
@@ -99,7 +177,7 @@ export function CreateEventPage() {
       }))
     };
 
-    console.log('Submitting event data:', eventData);
+    console.log('Submitting event with banner_url:', eventData.banner_url);
 
     try {
       const response = await eventAPI.create(eventData);
@@ -216,26 +294,71 @@ export function CreateEventPage() {
               </div>
             ) : (
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Upload Image</label>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Upload Image from Computer</label>
                 <input
                   type="file"
                   accept="image/*"
                   onChange={handleImageUpload}
-                  className="w-full px-4 py-3 border rounded-xl"
+                  disabled={uploading}
+                  className="w-full px-4 py-3 border rounded-xl file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-green-50 file:text-green-700 hover:file:bg-green-100"
                 />
-                <p className="text-xs text-gray-500 mt-1">Upload JPG, PNG, or GIF (Max 5MB)</p>
+                {uploading && (
+                  <div className="mt-3">
+                    <div className="flex items-center gap-2">
+                      <Loader className="size-4 animate-spin text-green-600" />
+                      <span className="text-sm text-gray-600">Uploading... {uploadProgress}%</span>
+                    </div>
+                    <div className="w-full bg-gray-200 rounded-full h-2 mt-2">
+                      <div className="bg-green-600 h-2 rounded-full transition-all" style={{ width: `${uploadProgress}%` }} />
+                    </div>
+                  </div>
+                )}
+                {uploadError && (
+                  <div className="mt-2 p-2 bg-red-50 border border-red-200 rounded-lg">
+                    <p className="text-sm text-red-600">{uploadError}</p>
+                  </div>
+                )}
+                {uploadSuccess && (
+                  <div className="mt-2 p-2 bg-green-50 border border-green-200 rounded-lg flex items-center gap-2">
+                    <CheckCircle className="size-4 text-green-600" />
+                    <p className="text-sm text-green-600">Image uploaded successfully!</p>
+                  </div>
+                )}
+                <p className="text-xs text-gray-500 mt-2">Upload JPG, PNG, or GIF (Max 5MB). Image will be stored on our server permanently.</p>
               </div>
             )}
 
             {bannerPreview && (
               <div className="mt-4">
-                <p className="text-sm font-medium text-gray-700 mb-2">Preview:</p>
-                <img src={bannerPreview} alt="Banner preview" className="w-full h-48 object-cover rounded-xl" />
+                <div className="flex items-center justify-between mb-2">
+                  <p className="text-sm font-medium text-gray-700">Preview:</p>
+                  <button
+                    type="button"
+                    onClick={handleRemoveImage}
+                    className="text-sm text-red-600 hover:text-red-700 flex items-center gap-1"
+                  >
+                    <X className="size-4" /> Remove Image
+                  </button>
+                </div>
+                <img 
+                  src={bannerPreview} 
+                  alt="Banner preview" 
+                  className="w-full h-56 object-cover rounded-xl border border-gray-200 shadow-sm"
+                  onError={(e) => {
+                    console.error('Image failed to load:', bannerPreview);
+                    e.target.src = 'https://images.unsplash.com/photo-1540575467063-178a50c2df87';
+                  }}
+                />
+                {formData.banner_url && (
+                  <p className="text-xs text-green-600 mt-2 break-all">
+                    ✓ Image URL: {formData.banner_url.substring(0, 80)}...
+                  </p>
+                )}
               </div>
             )}
             {!bannerPreview && (
               <div className="mt-4 p-4 bg-yellow-50 rounded-xl border border-yellow-200">
-                <p className="text-sm text-yellow-700">⚠️ Banner image is required. Please add an image URL or upload one.</p>
+                <p className="text-sm text-yellow-700">⚠️ Banner image is required. Please add an image URL or upload one from your computer.</p>
               </div>
             )}
           </div>

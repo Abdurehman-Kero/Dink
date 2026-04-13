@@ -4,38 +4,46 @@ import {
   Award, Globe, Smartphone, CreditCard, Headphones,
   ArrowRight, Star, CheckCircle, Zap, BarChart3,
   Ticket, MapPin, Clock, ChevronRight, Play,
-  Mail, Phone, Map, Coffee, Music, Mic, Palette
+  Mail, Phone, Map, Coffee, Music, Mic, Palette,
+  Heart, Gift, Rocket, Crown, DollarSign, Eye,
+  Activity, Compass, PartyPopper, Sparkle,User
 } from "lucide-react";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 
 export function LandingPage() {
   const [currentSlide, setCurrentSlide] = useState(0);
   const [scrolled, setScrolled] = useState(false);
+  const [activeTestimonial, setActiveTestimonial] = useState(0);
+  const counterRef = useRef(null);
+  const [counts, setCounts] = useState({ events: 0, tickets: 0, organizers: 0, satisfaction: 0 });
 
   const featuredEvents = [
     {
-      title: "Ethiopian Coffee Festival 2024",
+      title: "Ethiopian Coffee Festival 2026",
       category: "Cultural",
-      date: "Dec 15-17, 2024",
+      date: "may 1-2, 2026",
       location: "Addis Ababa",
       image: "https://images.unsplash.com/photo-1442512595331-e89e73853f31",
-      price: "250 ETB"
+      price: "250 ETB",
+      badge: "Trending"
     },
     {
       title: "Addis International Jazz Fest",
       category: "Music",
-      date: "Nov 20-22, 2024",
+      date: "april 29, 2026",
       location: "Addis Ababa",
       image: "https://images.unsplash.com/photo-1511735111819-9a3f7709049c",
-      price: "350 ETB"
+      price: "350 ETB",
+      badge: "Almost Sold Out"
     },
     {
       title: "Gondar Traditional Dance",
       category: "Cultural",
-      date: "Oct 10-12, 2024",
+      date: "may 4-5, 2026",
       location: "Gondar",
       image: "https://images.unsplash.com/photo-1533105079780-92b9be482077",
-      price: "150 ETB"
+      price: "150 ETB",
+      badge: "Limited Seats"
     }
   ];
 
@@ -43,34 +51,51 @@ export function LandingPage() {
     {
       name: "Nahom Wondale",
       role: "Event Organizer",
-      content:
-        "DEMS has transformed how I manage my events. The platform is intuitive and the support team is amazing!",
+      content: "DEMS has transformed how I manage my events. The platform is intuitive and the support team is amazing! My ticket sales increased by 200%.",
       rating: 5,
       image: "https://i.imgur.com/ryO91vr.png",
+      event: "Ethiopian Coffee Festival"
     },
     {
       name: "Helen Mekonnen",
       role: "Attendee",
-      content: "Finding and booking tickets has never been easier.",
+      content: "Finding and booking tickets has never been easier. The QR code check-in is seamless and I love the digital wallet feature!",
       rating: 5,
-      image:
-        "https://plus.unsplash.com/premium_photo-1745624797642-4f522d5bcbfe?q=80&w=687&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D",
+      image: "https://plus.unsplash.com/premium_photo-1745624797642-4f522d5bcbfe?q=80&w=687&auto=format&fit=crop",
+      event: "Addis Jazz Festival"
     },
     {
       name: "Abdisa Waritu",
       role: "Event Organizer",
-      content:
-        "The analytics dashboard gives me real insights into my event performance.",
+      content: "The analytics dashboard gives me real insights into my event performance. I can track sales, revenue, and attendance in real-time.",
       rating: 5,
       image: "https://i.imgur.com/ndMwXNm.png",
+      event: "Tech Summit 2026"
     },
+    {
+      name: "Meron Assefa",
+      role: "Attendee",
+      content: "I've attended over 20 events through DEMS. The platform is reliable, secure, and the customer support is exceptional!",
+      rating: 5,
+      image: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?q=80&w=687&auto=format&fit=crop",
+      event: "Various Events"
+    }
+  ];
+
+  const features = [
+    { icon: Rocket, title: "Instant Booking", description: "Book tickets in seconds with our one-click checkout", color: "from-blue-500 to-cyan-500", delay: 0 },
+    { icon: Shield, title: "Secure Payments", description: "Protected by Chapa, Ethiopia's leading payment gateway", color: "from-green-500 to-emerald-500", delay: 0.1 },
+    { icon: Smartphone, title: "Digital Tickets", description: "QR code tickets for contactless entry", color: "from-purple-500 to-pink-500", delay: 0.2 },
+    { icon: BarChart3, title: "Analytics Dashboard", description: "Real-time insights into your event performance", color: "from-orange-500 to-red-500", delay: 0.3 },
+    { icon: Users, title: "Audience Insights", description: "Understand your attendees with detailed demographics", color: "from-indigo-500 to-purple-500", delay: 0.4 },
+    { icon: Gift, title: "Promo Tools", description: "Create discount codes and run marketing campaigns", color: "from-pink-500 to-rose-500", delay: 0.5 }
   ];
 
   const stats = [
-    { value: "50K+", label: "Happy Customers", icon: Users },
-    { value: "1,000+", label: "Events Hosted", icon: Calendar },
-    { value: "98%", label: "Satisfaction Rate", icon: Star },
-    { value: "24/7", label: "Support", icon: Headphones }
+    { value: 10000, label: "Events Hosted", icon: Calendar, suffix: "+" },
+    { value: 500000, label: "Tickets Sold", icon: Ticket, suffix: "+" },
+    { value: 5000, label: "Happy Organizers", icon: Users, suffix: "+" },
+    { value: 98, label: "Satisfaction Rate", icon: Star, suffix: "%" }
   ];
 
   useEffect(() => {
@@ -81,15 +106,51 @@ export function LandingPage() {
   }, []);
 
   useEffect(() => {
+    const testimonialInterval = setInterval(() => {
+      setActiveTestimonial((prev) => (prev + 1) % testimonials.length);
+    }, 6000);
+    return () => clearInterval(testimonialInterval);
+  }, []);
+
+  useEffect(() => {
     const handleScroll = () => {
       setScrolled(window.scrollY > 50);
     };
     window.addEventListener("scroll", handleScroll);
-    return () => window.removeEventListener("scroll", handleScroll);
+    
+    // Animate counters when in view
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach(entry => {
+        if (entry.isIntersecting) {
+          stats.forEach((stat, idx) => {
+            let start = 0;
+            const end = stat.value;
+            const duration = 2000;
+            const increment = end / (duration / 16);
+            const timer = setInterval(() => {
+              start += increment;
+              if (start >= end) {
+                clearInterval(timer);
+                start = end;
+              }
+              setCounts(prev => ({ ...prev, [stat.label]: Math.floor(start) }));
+            }, 16);
+          });
+          observer.disconnect();
+        }
+      });
+    });
+    
+    if (counterRef.current) observer.observe(counterRef.current);
+    
+    return () => {
+      window.removeEventListener("scroll", handleScroll);
+      observer.disconnect();
+    };
   }, []);
 
   return (
-    <div className="min-h-screen flex flex-col">
+    <div className="min-h-screen flex flex-col overflow-x-hidden">
       {/* Hero Section */}
       <section className="relative bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 text-white overflow-hidden">
         {/* Ethiopian tricolor accent */}
@@ -100,37 +161,52 @@ export function LandingPage() {
         </div>
 
         {/* Animated Background Pattern */}
-        <div className="absolute inset-0 opacity-10">
-          <div className="absolute inset-0" style={{
+        <div className="absolute inset-0 opacity-5">
+          <div className="absolute inset-0 animate-spin-slow" style={{
             backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Cpath fill='%23fff' d='M10,10 L20,10 L15,20 Z'/%3E%3C/svg%3E")`,
             backgroundSize: '40px 40px'
           }} />
         </div>
 
-        <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20 md:py-32">
+        {/* Floating elements */}
+        <div className="absolute top-20 left-10 animate-float">
+          <Ticket className="size-12 text-green-400/20" />
+        </div>
+        <div className="absolute bottom-20 right-10 animate-float-delayed">
+          <Music className="size-16 text-yellow-400/20" />
+        </div>
+        <div className="absolute top-1/3 right-1/4 animate-float-slow">
+          <Coffee className="size-10 text-red-400/20" />
+        </div>
+
+        <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16 md:py-24 lg:py-32">
           <div className="text-center">
             <div className="animate-fadeInUp">
-              <div className="inline-flex items-center gap-2 px-4 py-2 bg-white/10 backdrop-blur-sm rounded-full mb-6">
-                <Sparkles className="size-4 text-yellow-400" />
+              <div className="inline-flex items-center gap-2 px-4 py-2 bg-white/10 backdrop-blur-sm rounded-full mb-6 hover:scale-105 transition-transform cursor-pointer">
+                <Sparkles className="size-4 text-yellow-400 animate-pulse" />
                 <span className="text-sm font-medium">Ethiopia's #1 Event Platform</span>
+                <TrendingUp className="size-3 text-green-400" />
               </div>
 
               <div className="mb-6">
-                <div className="text-6xl md:text-7xl lg:text-8xl font-bold mb-4">
+                <div className="text-6xl md:text-7xl lg:text-8xl font-bold mb-4 relative inline-block">
                   <span className="bg-gradient-to-r from-green-400 via-yellow-300 to-red-400 bg-clip-text text-transparent animate-gradient">
                     DEMS
                   </span>
+                  <div className="absolute -top-2 -right-8">
+                    <Crown className="size-8 text-yellow-400 animate-bounce" />
+                  </div>
                 </div>
                 <div className="h-1 w-32 mx-auto mb-8 flex rounded-full overflow-hidden">
-                  <div className="flex-1 bg-green-500" />
-                  <div className="flex-1 bg-yellow-400" />
-                  <div className="flex-1 bg-red-500" />
+                  <div className="flex-1 bg-green-500 animate-pulse" />
+                  <div className="flex-1 bg-yellow-400 animate-pulse delay-100" />
+                  <div className="flex-1 bg-red-500 animate-pulse delay-200" />
                 </div>
               </div>
 
-              <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold mb-6 leading-tight">
-                Discover. Experience. <br />
-                <span className="text-green-400">Connect.</span>
+              <h1 className="text-4xl md:text-5xl lg:text-7xl font-bold mb-6 leading-tight">
+                Discover. Experience.{" "}
+                <span className="bg-gradient-to-r from-green-400 to-yellow-400 bg-clip-text text-transparent">Connect.</span>
               </h1>
               <p className="text-xl md:text-2xl text-gray-300 mb-8 max-w-3xl mx-auto">
                 Ethiopia's premier platform for discovering amazing events, booking tickets instantly, 
@@ -140,26 +216,57 @@ export function LandingPage() {
               <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-16">
                 <Link
                   to="/discover"
-                  className="group px-8 py-4 bg-gradient-to-r from-green-600 to-green-700 text-white rounded-xl font-semibold hover:from-green-700 hover:to-green-800 transition-all duration-300 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 flex items-center gap-2"
+                  className="group relative px-8 py-4 bg-gradient-to-r from-green-600 to-green-700 text-white rounded-xl font-semibold hover:from-green-700 hover:to-green-800 transition-all duration-300 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 flex items-center gap-2 overflow-hidden"
                 >
-                  Explore Events
-                  <ArrowRight className="size-5 group-hover:translate-x-1 transition-transform" />
+                  <span className="absolute inset-0 w-0 bg-white/20 transition-all duration-300 group-hover:w-full"></span>
+                  <span className="relative flex items-center gap-2">
+                    Explore Events
+                    <ArrowRight className="size-5 group-hover:translate-x-1 transition-transform" />
+                  </span>
                 </Link>
                 <Link
                   to="/organizer/signup"
-                  className="px-8 py-4 bg-transparent border-2 border-white text-white rounded-xl font-semibold hover:bg-white hover:text-gray-900 transition-all duration-300 flex items-center gap-2"
+                  className="px-8 py-4 bg-transparent border-2 border-white text-white rounded-xl font-semibold hover:bg-white hover:text-gray-900 transition-all duration-300 flex items-center gap-2 group"
                 >
+                  <Calendar className="size-5 group-hover:rotate-12 transition-transform" />
                   Start Organizing
-                  <Calendar className="size-5" />
+                </Link>
+                <Link
+                  to="/login"
+                  className="px-8 py-4 bg-white/10 backdrop-blur-sm text-white rounded-xl font-semibold hover:bg-white/20 transition-all duration-300 flex items-center gap-2"
+                >
+                  <User className="size-5" />
+                  Sign In
                 </Link>
               </div>
 
+              {/* Trust badges */}
+              <div className="flex flex-wrap items-center justify-center gap-6 mb-12">
+                <div className="flex items-center gap-2 text-sm text-gray-400">
+                  <CheckCircle className="size-4 text-green-500" />
+                  <span>Trusted by 5,000+ organizers</span>
+                </div>
+                <div className="flex items-center gap-2 text-sm text-gray-400">
+                  <Shield className="size-4 text-green-500" />
+                  <span>Secure payments</span>
+                </div>
+                <div className="flex items-center gap-2 text-sm text-gray-400">
+                  <Headphones className="size-4 text-green-500" />
+                  <span>24/7 support</span>
+                </div>
+              </div>
+
               {/* Stats Banner */}
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-8 max-w-3xl mx-auto">
+              <div ref={counterRef} className="grid grid-cols-2 md:grid-cols-4 gap-8 max-w-4xl mx-auto">
                 {stats.map((stat, idx) => (
-                  <div key={idx} className="text-center animate-fadeInUp" style={{ animationDelay: `${idx * 0.1}s` }}>
-                    <stat.icon className="size-8 mx-auto mb-2 text-green-400" />
-                    <div className="text-2xl font-bold">{stat.value}</div>
+                  <div key={idx} className="text-center animate-fadeInUp group" style={{ animationDelay: `${idx * 0.1}s` }}>
+                    <div className="relative inline-block">
+                      <div className="absolute inset-0 bg-green-500/20 rounded-full blur-xl group-hover:bg-green-500/30 transition-all"></div>
+                      <stat.icon className="size-8 mx-auto mb-2 text-green-400 relative z-10 group-hover:scale-110 transition-transform" />
+                    </div>
+                    <div className="text-3xl md:text-4xl font-bold">
+                      {counts[stat.label]?.toLocaleString() || 0}{stat.suffix}
+                    </div>
                     <div className="text-sm text-gray-400">{stat.label}</div>
                   </div>
                 ))}
@@ -169,68 +276,78 @@ export function LandingPage() {
         </div>
 
         {/* Scroll Indicator */}
-        <div className="absolute bottom-8 left-1/2 transform -translate-x-1/2 animate-bounce">
-          <div className="w-6 h-10 border-2 border-white rounded-full flex justify-center">
+        <div className="absolute bottom-8 left-1/2 transform -translate-x-1/2 animate-bounce cursor-pointer">
+          <div className="w-6 h-10 border-2 border-white rounded-full flex justify-center hover:bg-white/10 transition">
             <div className="w-1 h-2 bg-white rounded-full mt-2 animate-pulse" />
           </div>
         </div>
       </section>
 
-      {/* Featured Events Carousel */}
-      <section className="py-20 px-6 bg-white">
+      {/* Featured Events Section */}
+      <section className="py-20 px-6 bg-white relative">
+        <div className="absolute top-0 left-0 right-0 h-20 bg-gradient-to-b from-gray-50 to-transparent"></div>
         <div className="max-w-7xl mx-auto">
           <div className="text-center mb-12">
-            <div className="inline-flex items-center gap-2 px-4 py-2 bg-green-50 rounded-full mb-4">
+            <div className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-green-50 to-emerald-50 rounded-full mb-4 animate-pulse">
               <TrendingUp className="size-4 text-green-600" />
-              <span className="text-sm font-medium text-green-600">Featured Events</span>
+              <span className="text-sm font-medium text-green-600">Trending Now</span>
             </div>
             <h2 className="text-3xl md:text-4xl font-bold text-gray-900 mb-4">
-              Popular Events Near You
+              Popular Events <span className="text-green-600">Near You</span>
             </h2>
             <p className="text-gray-600 max-w-2xl mx-auto">
               Discover the most anticipated events happening across Ethiopia
             </p>
           </div>
 
-          <div className="relative">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-              {featuredEvents.map((event, idx) => (
-                <div key={idx} className="group bg-white rounded-2xl overflow-hidden shadow-lg hover:shadow-xl transition-all duration-300 transform hover:-translate-y-2">
-                  <div className="relative h-48 overflow-hidden">
-                    <img src={event.image} alt={event.title} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" />
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
-                    <span className="absolute top-4 left-4 px-3 py-1 bg-green-600 text-white text-xs font-semibold rounded-full">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+            {featuredEvents.map((event, idx) => (
+              <div key={idx} className="group relative bg-white rounded-2xl overflow-hidden shadow-lg hover:shadow-2xl transition-all duration-500 transform hover:-translate-y-3">
+                <div className="relative h-56 overflow-hidden">
+                  <img src={event.image} alt={event.title} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" />
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent" />
+                  <div className="absolute top-4 left-4 flex gap-2">
+                    <span className="px-3 py-1 bg-green-600 text-white text-xs font-semibold rounded-full shadow-lg">
                       {event.category}
                     </span>
+                    {event.badge && (
+                      <span className="px-3 py-1 bg-yellow-500 text-white text-xs font-semibold rounded-full shadow-lg animate-pulse">
+                        {event.badge}
+                      </span>
+                    )}
                   </div>
-                  <div className="p-6">
-                    <h3 className="font-bold text-xl text-gray-900 mb-2">{event.title}</h3>
-                    <div className="space-y-2 mb-4">
-                      <div className="flex items-center gap-2 text-gray-600">
-                        <Calendar className="size-4 text-green-600" />
-                        <span className="text-sm">{event.date}</span>
-                      </div>
-                      <div className="flex items-center gap-2 text-gray-600">
-                        <MapPin className="size-4 text-red-500" />
-                        <span className="text-sm">{event.location}</span>
-                      </div>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <span className="text-2xl font-bold text-green-600">{event.price}</span>
-                      <Link to="/discover" className="text-green-600 hover:text-green-700 font-medium flex items-center gap-1">
-                        Book Now <ChevronRight className="size-4" />
-                      </Link>
-                    </div>
+                  <div className="absolute bottom-4 right-4">
+                    <span className="px-3 py-1 bg-black/50 backdrop-blur-sm text-white text-sm font-bold rounded-lg">
+                      {event.price}
+                    </span>
                   </div>
                 </div>
-              ))}
-            </div>
+                <div className="p-6">
+                  <h3 className="font-bold text-xl text-gray-900 mb-2 group-hover:text-green-600 transition-colors">
+                    {event.title}
+                  </h3>
+                  <div className="space-y-2 mb-4">
+                    <div className="flex items-center gap-2 text-gray-600">
+                      <Calendar className="size-4 text-green-600" />
+                      <span className="text-sm">{event.date}</span>
+                    </div>
+                    <div className="flex items-center gap-2 text-gray-600">
+                      <MapPin className="size-4 text-red-500" />
+                      <span className="text-sm">{event.location}</span>
+                    </div>
+                  </div>
+                  <Link to="/discover" className="inline-flex items-center gap-2 text-green-600 font-semibold group-hover:gap-3 transition-all">
+                    Book Now <ChevronRight className="size-4" />
+                  </Link>
+                </div>
+              </div>
+            ))}
           </div>
         </div>
       </section>
 
       {/* Features Grid */}
-      <section className="py-20 px-6 bg-gray-50">
+      <section className="py-20 px-6 bg-gradient-to-b from-gray-50 to-white">
         <div className="max-w-7xl mx-auto">
           <div className="text-center mb-12">
             <div className="inline-flex items-center gap-2 px-4 py-2 bg-green-50 rounded-full mb-4">
@@ -238,26 +355,24 @@ export function LandingPage() {
               <span className="text-sm font-medium text-green-600">Why Choose DEMS</span>
             </div>
             <h2 className="text-3xl md:text-4xl font-bold text-gray-900 mb-4">
-              Everything You Need in One Platform
+              Everything You Need in <span className="text-green-600">One Platform</span>
             </h2>
             <p className="text-gray-600 max-w-2xl mx-auto">
               Powerful features to make event management and ticket booking seamless
             </p>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
-            {[
-              { icon: Ticket, title: "Easy Booking", description: "Book tickets in seconds with our streamlined checkout", color: "green" },
-              { icon: Shield, title: "Secure Payments", description: "Protected by Chapa, Ethiopia's leading payment gateway", color: "blue" },
-              { icon: Smartphone, title: "Digital Tickets", description: "QR code tickets for contactless entry", color: "purple" },
-              { icon: BarChart3, title: "Analytics Dashboard", description: "Real-time insights into your event performance", color: "orange" }
-            ].map((feature, idx) => (
-              <div key={idx} className="group bg-white rounded-2xl p-8 shadow-md hover:shadow-xl transition-all duration-300 text-center">
-                <div className="w-16 h-16 bg-gray-100 rounded-2xl flex items-center justify-center mx-auto mb-4 group-hover:scale-110 transition-transform">
-                  <feature.icon className="size-8 text-green-600" />
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+            {features.map((feature, idx) => (
+              <div key={idx} className="group bg-white rounded-2xl p-8 shadow-md hover:shadow-xl transition-all duration-500 transform hover:-translate-y-2 animate-fadeInUp" style={{ animationDelay: `${feature.delay}s` }}>
+                <div className={`w-16 h-16 bg-gradient-to-br ${feature.color} rounded-2xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform duration-300 shadow-lg`}>
+                  <feature.icon className="size-8 text-white" />
                 </div>
                 <h3 className="text-xl font-bold text-gray-900 mb-2">{feature.title}</h3>
                 <p className="text-gray-600">{feature.description}</p>
+                <div className="mt-4 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <span className="text-green-600 text-sm font-medium">Learn more →</span>
+                </div>
               </div>
             ))}
           </div>
@@ -273,129 +388,156 @@ export function LandingPage() {
               <span className="text-sm font-medium text-green-600">Simple Process</span>
             </div>
             <h2 className="text-3xl md:text-4xl font-bold text-gray-900 mb-4">
-              How DEMS Works
+              How <span className="text-green-600">DEMS Works</span>
             </h2>
             <p className="text-gray-600 max-w-2xl mx-auto">
               Get started in three simple steps
             </p>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8 relative">
+            {/* Connecting line */}
+            <div className="hidden md:block absolute top-1/3 left-0 right-0 h-0.5 bg-gradient-to-r from-green-300 via-yellow-300 to-red-300 -translate-y-1/2 z-0">
+              <div className="absolute left-1/3 top-1/2 w-3 h-3 bg-green-500 rounded-full -translate-y-1/2 animate-ping"></div>
+              <div className="absolute right-1/3 top-1/2 w-3 h-3 bg-red-500 rounded-full -translate-y-1/2 animate-ping"></div>
+            </div>
+            
             {[
-              { step: "01", title: "Discover", description: "Browse through hundreds of events happening near you", icon: MapPin },
-              { step: "02", title: "Book", description: "Select your tickets and checkout securely", icon: CreditCard },
-              { step: "03", title: "Experience", description: "Scan your QR code and enjoy the event", icon: Users }
+              { step: "01", title: "Discover", description: "Browse through hundreds of events happening near you", icon: Compass, color: "from-green-500 to-emerald-500" },
+              { step: "02", title: "Book", description: "Select your tickets and checkout securely", icon: CreditCard, color: "from-yellow-500 to-orange-500" },
+              { step: "03", title: "Experience", description: "Scan your QR code and enjoy the event", icon: PartyPopper, color: "from-red-500 to-pink-500" }
             ].map((step, idx) => (
-              <div key={idx} className="relative text-center">
-                {idx < 2 && (
-                  <div className="hidden md:block absolute top-1/3 left-full w-full h-0.5 bg-gradient-to-r from-green-500 to-green-300 -translate-y-1/2 z-0">
-                    <div className="absolute right-0 top-1/2 w-3 h-3 bg-green-500 rounded-full -translate-y-1/2" />
+              <div key={idx} className="relative z-10 text-center group">
+                <div className="relative inline-block mb-4">
+                  <div className={`w-24 h-24 bg-gradient-to-br ${step.color} rounded-2xl flex items-center justify-center mx-auto shadow-xl group-hover:scale-110 transition-transform duration-300`}>
+                    <step.icon className="size-10 text-white" />
                   </div>
-                )}
-                <div className="relative z-10 bg-white rounded-2xl p-8 shadow-lg">
-                  <div className="w-20 h-20 bg-gradient-to-br from-green-600 to-green-700 rounded-2xl flex items-center justify-center mx-auto mb-4 text-white text-2xl font-bold">
+                  <div className="absolute -top-2 -right-2 w-8 h-8 bg-white rounded-full flex items-center justify-center shadow-md font-bold text-green-600">
                     {step.step}
                   </div>
-                  <step.icon className="size-12 mx-auto mb-4 text-green-600" />
-                  <h3 className="text-xl font-bold text-gray-900 mb-2">{step.title}</h3>
-                  <p className="text-gray-600">{step.description}</p>
                 </div>
+                <h3 className="text-xl font-bold text-gray-900 mb-2">{step.title}</h3>
+                <p className="text-gray-600 px-4">{step.description}</p>
               </div>
             ))}
           </div>
         </div>
       </section>
 
-      {/* Testimonials */}
-      <section className="py-20 px-6 bg-gray-50">
-        <div className="max-w-7xl mx-auto">
+      {/* Testimonials Carousel */}
+      <section className="py-20 px-6 bg-gradient-to-br from-gray-900 to-gray-800 text-white relative overflow-hidden">
+        <div className="absolute inset-0 opacity-5">
+          <div className="absolute inset-0" style={{
+            backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Cpath fill='%23fff' d='M10,10 L20,10 L15,20 Z'/%3E%3C/svg%3E")`,
+            backgroundSize: '60px 60px'
+          }} />
+        </div>
+        
+        <div className="max-w-7xl mx-auto relative z-10">
           <div className="text-center mb-12">
-            <div className="inline-flex items-center gap-2 px-4 py-2 bg-green-50 rounded-full mb-4">
-              <Star className="size-4 text-green-600" />
-              <span className="text-sm font-medium text-green-600">Testimonials</span>
+            <div className="inline-flex items-center gap-2 px-4 py-2 bg-white/10 backdrop-blur-sm rounded-full mb-4">
+              <Star className="size-4 text-yellow-400 fill-yellow-400" />
+              <span className="text-sm font-medium">Loved by Thousands</span>
             </div>
-            <h2 className="text-3xl md:text-4xl font-bold text-gray-900 mb-4">
-              What Our Users Say
+            <h2 className="text-3xl md:text-4xl font-bold mb-4">
+              What Our <span className="text-green-400">Users Say</span>
             </h2>
-            <p className="text-gray-600 max-w-2xl mx-auto">
-              Trusted by thousands of event organizers and attendees
+            <p className="text-gray-300 max-w-2xl mx-auto">
+              Trusted by thousands of event organizers and attendees across Ethiopia
             </p>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-            {testimonials.map((testimonial, idx) => (
-              <div key={idx} className="bg-white rounded-2xl p-8 shadow-md hover:shadow-lg transition-all">
-                <div className="flex items-center gap-4 mb-4">
-                  <img src={testimonial.image} alt={testimonial.name} className="w-14 h-14 rounded-full object-cover" />
-                  <div>
-                    <h4 className="font-bold text-gray-900">{testimonial.name}</h4>
-                    <p className="text-sm text-gray-500">{testimonial.role}</p>
+          <div className="relative max-w-4xl mx-auto">
+            <div className="overflow-hidden">
+              <div 
+                className="flex transition-transform duration-500 ease-out"
+                style={{ transform: `translateX(-${activeTestimonial * 100}%)` }}
+              >
+                {testimonials.map((testimonial, idx) => (
+                  <div key={idx} className="w-full flex-shrink-0 px-4">
+                    <div className="bg-white/10 backdrop-blur-sm rounded-2xl p-8 text-center">
+                      <div className="flex justify-center mb-4">
+                        <div className="relative">
+                          <img src={testimonial.image} alt={testimonial.name} className="w-20 h-20 rounded-full object-cover border-4 border-green-500" />
+                          <div className="absolute -bottom-1 -right-1 bg-green-500 rounded-full p-1">
+                            <CheckCircle className="size-3 text-white" />
+                          </div>
+                        </div>
+                      </div>
+                      <div className="flex justify-center gap-1 mb-4">
+                        {[...Array(testimonial.rating)].map((_, i) => (
+                          <Star key={i} className="size-5 fill-yellow-400 text-yellow-400" />
+                        ))}
+                      </div>
+                      <p className="text-gray-200 italic mb-6">"{testimonial.content}"</p>
+                      <div>
+                        <p className="font-semibold text-white">{testimonial.name}</p>
+                        <p className="text-sm text-green-400">{testimonial.role} • {testimonial.event}</p>
+                      </div>
+                    </div>
                   </div>
-                </div>
-                <div className="flex gap-1 mb-4">
-                  {[...Array(testimonial.rating)].map((_, i) => (
-                    <Star key={i} className="size-4 fill-yellow-400 text-yellow-400" />
-                  ))}
-                </div>
-                <p className="text-gray-600 italic">"{testimonial.content}"</p>
+                ))}
               </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* Stats Counter */}
-      <section className="py-20 px-6 bg-gradient-to-r from-green-900 to-green-800 text-white">
-        <div className="max-w-7xl mx-auto">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-8 text-center">
-            <div>
-              <div className="text-4xl md:text-5xl font-bold mb-2">10,000+</div>
-              <div className="text-green-200">Events Hosted</div>
             </div>
-            <div>
-              <div className="text-4xl md:text-5xl font-bold mb-2">500,000+</div>
-              <div className="text-green-200">Tickets Sold</div>
-            </div>
-            <div>
-              <div className="text-4xl md:text-5xl font-bold mb-2">5,000+</div>
-              <div className="text-green-200">Happy Organizers</div>
-            </div>
-            <div>
-              <div className="text-4xl md:text-5xl font-bold mb-2">98%</div>
-              <div className="text-green-200">Satisfaction Rate</div>
+            
+            {/* Dots */}
+            <div className="flex justify-center gap-2 mt-8">
+              {testimonials.map((_, idx) => (
+                <button
+                  key={idx}
+                  onClick={() => setActiveTestimonial(idx)}
+                  className={`transition-all duration-300 ${
+                    activeTestimonial === idx 
+                      ? "w-8 h-2 bg-green-500 rounded-full" 
+                      : "w-2 h-2 bg-gray-500 rounded-full hover:bg-gray-400"
+                  }`}
+                />
+              ))}
             </div>
           </div>
         </div>
       </section>
 
       {/* CTA Section */}
-      <section className="py-20 px-6 bg-gray-900 text-white">
-        <div className="max-w-4xl mx-auto text-center">
-          <div className="inline-flex items-center gap-2 px-4 py-2 bg-white/10 rounded-full mb-6">
-            <Sparkles className="size-4 text-yellow-400" />
+      <section className="py-20 px-6 bg-gradient-to-r from-green-900 to-green-800 text-white relative overflow-hidden">
+        <div className="absolute inset-0">
+          <div className="absolute inset-0 bg-black/20"></div>
+          <div className="absolute -top-40 -right-40 w-80 h-80 bg-green-500 rounded-full blur-3xl opacity-20 animate-pulse"></div>
+          <div className="absolute -bottom-40 -left-40 w-80 h-80 bg-yellow-500 rounded-full blur-3xl opacity-20 animate-pulse delay-1000"></div>
+        </div>
+        
+        <div className="relative z-10 max-w-4xl mx-auto text-center">
+          <div className="inline-flex items-center gap-2 px-4 py-2 bg-white/10 backdrop-blur-sm rounded-full mb-6 animate-pulse">
+            <Sparkle className="size-4 text-yellow-400" />
             <span className="text-sm font-medium">Ready to Get Started?</span>
           </div>
-          <h2 className="text-3xl md:text-4xl font-bold mb-6">
-            Join Ethiopia's Premier Event Platform
+          <h2 className="text-3xl md:text-5xl font-bold mb-6">
+            Join Ethiopia's Premier <span className="text-yellow-400">Event Platform</span>
           </h2>
-          <p className="text-xl text-gray-300 mb-8">
+          <p className="text-xl text-green-100 mb-8 max-w-2xl mx-auto">
             Whether you're looking to attend events or host your own, DEMS has you covered.
           </p>
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
             <Link
               to="/discover"
-              className="group px-8 py-4 bg-white text-gray-900 rounded-xl font-semibold hover:bg-gray-100 transition-all duration-300 flex items-center gap-2 shadow-lg"
+              className="group relative px-8 py-4 bg-white text-gray-900 rounded-xl font-semibold hover:bg-gray-100 transition-all duration-300 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 flex items-center gap-2 overflow-hidden"
             >
-              Start Exploring
-              <ArrowRight className="size-5 group-hover:translate-x-1 transition-transform" />
+              <span className="relative flex items-center gap-2">
+                Start Exploring
+                <Rocket className="size-5 group-hover:translate-x-1 group-hover:-translate-y-1 transition-transform" />
+              </span>
             </Link>
             <Link
               to="/organizer/signup"
-              className="px-8 py-4 bg-transparent border-2 border-white text-white rounded-xl font-semibold hover:bg-white hover:text-gray-900 transition-all duration-300"
+              className="px-8 py-4 bg-transparent border-2 border-white text-white rounded-xl font-semibold hover:bg-white hover:text-gray-900 transition-all duration-300 flex items-center gap-2 group"
             >
+              <Calendar className="size-5 group-hover:rotate-12 transition-transform" />
               Become an Organizer
             </Link>
           </div>
+          <p className="text-sm text-green-200 mt-8">
+            Join 5,000+ organizers already using DEMS • No setup fees • Cancel anytime
+          </p>
         </div>
       </section>
 
@@ -415,12 +557,49 @@ export function LandingPage() {
           50% { background-position: 100% 50%; }
           100% { background-position: 0% 50%; }
         }
+        @keyframes float {
+          0%, 100% { transform: translateY(0px); }
+          50% { transform: translateY(-20px); }
+        }
+        @keyframes float-delayed {
+          0%, 100% { transform: translateY(0px); }
+          50% { transform: translateY(-15px); }
+        }
+        @keyframes float-slow {
+          0%, 100% { transform: translateY(0px); }
+          50% { transform: translateY(-10px); }
+        }
+        @keyframes spin-slow {
+          from { transform: rotate(0deg); }
+          to { transform: rotate(360deg); }
+        }
         .animate-fadeInUp {
           animation: fadeInUp 0.8s ease-out forwards;
         }
         .animate-gradient {
           background-size: 200% auto;
           animation: gradient 3s linear infinite;
+        }
+        .animate-float {
+          animation: float 6s ease-in-out infinite;
+        }
+        .animate-float-delayed {
+          animation: float-delayed 5s ease-in-out infinite;
+        }
+        .animate-float-slow {
+          animation: float-slow 8s ease-in-out infinite;
+        }
+        .animate-spin-slow {
+          animation: spin-slow 20s linear infinite;
+        }
+        .delay-100 {
+          animation-delay: 100ms;
+        }
+        .delay-200 {
+          animation-delay: 200ms;
+        }
+        .delay-300 {
+          animation-delay: 300ms;
         }
       `}</style>
     </div>

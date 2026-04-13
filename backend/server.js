@@ -45,8 +45,9 @@ app.use(morgan('dev'));
 app.use(limiter);
 
 // Static Files
-app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
-app.use("/api/analytics", analyticsRoutes);
+const uploadRoutes = require("./routes/uploadRoutes");
+app.use("/api/upload", uploadRoutes);
+app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 // Health Check
 app.get('/health', (req, res) => {
   res.status(200).json({ 

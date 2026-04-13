@@ -15,40 +15,35 @@ export function LoginPage() {
 
   const from = location.state?.from?.pathname || '/discover';
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    setLoading(true);
-    setError('');
+const handleSubmit = async (e) => {
+  e.preventDefault();
+  setLoading(true);
+  setError('');
 
-    const result = await login(email, password);
-    
-    if (result.success) {
-      // Get user from localStorage
-      const storedUser = localStorage.getItem('user');
-      const user = storedUser ? JSON.parse(storedUser) : result.user;
-      
-      console.log('User role_id:', user?.role_id);
-      console.log('User email:', user?.email);
-      
-      // role_id: 1 = admin, 2 = organizer, 3 = attendee, 4 = staff, 5 = security
-      if (user?.role_id === 1) {
-        // Admin - redirect to admin dashboard
-        navigate('/admin/dashboard');
-      } else if (user?.role_id === 2) {
-        // Organizer - redirect to organizer dashboard
-        navigate('/organizer/dashboard');
-      } else if (user?.role_id === 4 || user?.role_id === 5) {
-        // Staff or Security - redirect to staff dashboard
-        navigate('/staff/dashboard');
-      } else {
-        // Attendee or others - redirect to discover page
-        navigate(from);
-      }
-    } else {
-      setError(result.error || 'Invalid email or password');
+  const result = await login(email, password);
+  
+  if (result.success) {
+    // Check if there's a redirect URL stored
+    const redirectUrl = sessionStorage.getItem('redirectAfterLogin');
+    if (redirectUrl) {
+      sessionStorage.removeItem('redirectAfterLogin');
+      navigate(redirectUrl);
+      return;
     }
-    setLoading(false);
-  };
+    
+    const roleId = result.user?.role_id;
+    if (roleId === 1) {
+      navigate('/admin/dashboard');
+    } else if (roleId === 2) {
+      navigate('/organizer/dashboard');
+    } else {
+      navigate(from);
+    }
+  } else {
+    setError(result.error || 'Invalid email or password');
+  }
+  setLoading(false);
+};
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 flex items-center justify-center px-4 py-12">

@@ -5,6 +5,7 @@ import { eventAPI } from '../../api/client';
 import { useAuth } from '../../contexts/AuthContext';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+const MAX_BANNER_URL_LENGTH = 500;
 
 export function CreateEventPage() {
   const navigate = useNavigate();
@@ -57,6 +58,21 @@ export function CreateEventPage() {
   const handleImageUrlChange = (e) => {
     const url = e.target.value;
     setImageUrl(url);
+
+    if (url && url.startsWith('data:image/')) {
+      setUploadError('Base64 image data is not supported. Please upload the image or use a direct image URL.');
+      setUploadSuccess(false);
+      setFormData(prev => ({ ...prev, banner_url: '' }));
+      return;
+    }
+
+    if (url.length > MAX_BANNER_URL_LENGTH) {
+      setUploadError(`Image URL is too long. Maximum length is ${MAX_BANNER_URL_LENGTH} characters.`);
+      setUploadSuccess(false);
+      setFormData(prev => ({ ...prev, banner_url: '' }));
+      return;
+    }
+
     setBannerPreview(url);
     setFormData(prev => ({ ...prev, banner_url: url }));
     setUploadSuccess(false);
@@ -150,6 +166,16 @@ export function CreateEventPage() {
     
     if (!formData.banner_url) {
       alert('Please add a banner image (URL or upload)');
+      return;
+    }
+
+    if (formData.banner_url.startsWith('data:image/')) {
+      alert('Base64 image data is not supported. Please upload the image or use a direct image URL.');
+      return;
+    }
+
+    if (formData.banner_url.length > MAX_BANNER_URL_LENGTH) {
+      alert(`Image URL is too long. Maximum length is ${MAX_BANNER_URL_LENGTH} characters.`);
       return;
     }
     

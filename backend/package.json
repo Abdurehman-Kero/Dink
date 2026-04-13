@@ -12,7 +12,8 @@
     "prisma:validate": "prisma validate",
     "prisma:format": "prisma format",
     "prisma:pull": "prisma db pull",
-    "prisma:studio": "prisma studio"
+    "prisma:studio": "prisma studio --browser none",
+    "prisma:studio:open": "prisma studio"
   },
   "keywords": [
     "event",

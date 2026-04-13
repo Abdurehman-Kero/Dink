@@ -1,6 +1,38 @@
 const { prisma } = require('../config/database');
 const { generateId } = require('../utils/id');
 
+const MAX_BANNER_URL_LENGTH = 500;
+const DATA_IMAGE_URL_REGEX = /^data:image\/[a-zA-Z0-9.+-]+;base64,/i;
+
+const normalizeBannerUrl = (bannerUrl) => {
+  if (!bannerUrl || typeof bannerUrl !== 'string') {
+    return null;
+  }
+
+  const trimmed = bannerUrl.trim();
+  return trimmed.length > 0 ? trimmed : null;
+};
+
+const isBase64ImageDataUrl = (value) => (
+  typeof value === 'string' && DATA_IMAGE_URL_REGEX.test(value)
+);
+
+const validateBannerUrl = (bannerUrl) => {
+  if (!bannerUrl) {
+    return null;
+  }
+
+  if (isBase64ImageDataUrl(bannerUrl)) {
+    return 'Banner image must be an uploaded file URL, not a base64 data URL. Upload the image first using /api/upload/event-image.';
+  }
+
+  if (bannerUrl.length > MAX_BANNER_URL_LENGTH) {
+    return `Banner image URL is too long. Maximum length is ${MAX_BANNER_URL_LENGTH} characters.`;
+  }
+
+  return null;
+};
+
 const withCategoryName = (event) => {
   const { category, ...rest } = event;
   return {
@@ -92,6 +124,12 @@ const createEvent = async (req, res) => {
     } = req.body;
     
     const organizerId = req.user.id;
+    const normalizedBannerUrl = normalizeBannerUrl(banner_url);
+    const bannerValidationError = validateBannerUrl(normalizedBannerUrl);
+
+    if (bannerValidationError) {
+      return res.status(400).json({ message: bannerValidationError });
+    }
 
     const createdEvent = await prisma.$transaction(async (tx) => {
       const event = await tx.event.create({
@@ -107,7 +145,7 @@ const createEvent = async (req, res) => {
           city,
           venue_name,
           address_line1,
-          banner_url: banner_url || null,
+          banner_url: normalizedBannerUrl,
           status: 'published'
         }
       });
@@ -138,6 +176,14 @@ const createEvent = async (req, res) => {
     res.status(201).json({ success: true, event_id: createdEvent.id });
   } catch (error) {
     console.error('Create event error:', error);
+
+    if (error?.code === 'P2000') {
+      return res.status(400).json({
+        message: 'One or more fields exceed the allowed size. Please shorten your input and try again.',
+        field: error?.meta?.target || null
+      });
+    }
+
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 };
@@ -160,6 +206,12 @@ const updateEvent = async (req, res) => {
     }
 
     const { title, description, start_datetime, end_datetime, city, venue_name, address_line1, banner_url } = req.body;
+    const normalizedBannerUrl = normalizeBannerUrl(banner_url);
+    const bannerValidationError = validateBannerUrl(normalizedBannerUrl);
+
+    if (bannerValidationError) {
+      return res.status(400).json({ message: bannerValidationError });
+    }
 
     await prisma.event.update({
       where: { id: eventId },
@@ -171,13 +223,21 @@ const updateEvent = async (req, res) => {
         city,
         venue_name,
         address_line1,
-        banner_url
+        banner_url: normalizedBannerUrl
       }
     });
 
     res.json({ success: true, message: 'Event updated successfully' });
   } catch (error) {
     console.error('Update event error:', error);
+
+    if (error?.code === 'P2000') {
+      return res.status(400).json({
+        message: 'One or more fields exceed the allowed size. Please shorten your input and try again.',
+        field: error?.meta?.target || null
+      });
+    }
+
     res.status(500).json({ message: 'Server error' });
   }
 };

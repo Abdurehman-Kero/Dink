@@ -21,6 +21,11 @@ const reviewRoutes = require('./routes/reviewRoutes');
 const paymentRoutes = require('./routes/paymentRoutes');
 const payoutRoutes = require('./routes/payoutRoutes');
 const platformFeeRoutes = require('./routes/platformFeeRoutes');
+const categoryRoutes = require('./routes/categoryRoutes');
+
+// Admin Management Routes
+const adminEventRoutes = require('./routes/adminEventRoutes');
+const adminCategoryRoutes = require('./routes/adminCategoryRoutes');
 
 const app = express();
 
@@ -63,8 +68,17 @@ app.use('/api/events', eventRoutes);
 // Staff Routes
 app.use('/api/staff', staffRoutes);
 
-// Admin Routes
+// Admin Routes (Main)
 app.use('/api/admin', adminRoutes);
+
+// Admin Event Management Routes
+app.use('/api/admin', adminEventRoutes);
+
+// Admin Category Management Routes
+app.use('/api/admin', adminCategoryRoutes);
+
+// Category Routes (Public)
+app.use('/api/categories', categoryRoutes);
 
 // Notification Routes
 app.use('/api/notifications', notificationRoutes);
@@ -107,5 +121,6 @@ app.listen(PORT, () => {
   console.log(`Ì≤≥ Payments API (Attendee ‚Üí Organizer): http://localhost:${PORT}/api/payments`);
   console.log(`Ì≤∞ Payouts API (Organizer receives): http://localhost:${PORT}/api/payouts`);
   console.log(`Ìø¢ Platform Fee API (Organizer ‚Üí Admin): http://localhost:${PORT}/api/platform-fee`);
+  console.log(`Ìø∑Ô∏è Categories API: http://localhost:${PORT}/api/categories`);
   console.log(`Ì≥ù Environment: ${process.env.NODE_ENV || 'development'}\n`);
 });

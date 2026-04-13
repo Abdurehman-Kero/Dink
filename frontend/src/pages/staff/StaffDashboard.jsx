@@ -69,17 +69,123 @@ export function StaffDashboard() {
     }
   };
 
+  const decodeBase64UrlSegment = (segment) => {
+    if (typeof segment !== 'string' || segment.length === 0 || typeof atob !== 'function') {
+      return null;
+    }
+
+    const normalized = segment.replace(/-/g, '+').replace(/_/g, '/');
+    const remainder = normalized.length % 4;
+    const padded = remainder === 0 ? normalized : normalized.padEnd(normalized.length + (4 - remainder), '=');
+
+    try {
+      return atob(padded);
+    } catch {
+      return null;
+    }
+  };
+
+  const decodeTicketPayloadFromQrToken = (qrToken) => {
+    const parts = typeof qrToken === 'string' ? qrToken.split('.') : [];
+    if (parts.length !== 3) {
+      return null;
+    }
+
+    const payloadText = decodeBase64UrlSegment(parts[1]);
+    if (!payloadText) {
+      return null;
+    }
+
+    try {
+      const parsed = JSON.parse(payloadText);
+      const ticketPayload = {
+        ticket_id: parsed?.ticket_id || '',
+        event_id: parsed?.event_id || '',
+        attendee_id: parsed?.attendee_id || '',
+        ticket_code: parsed?.ticket_code || ''
+      };
+
+      if (!ticketPayload.ticket_id || !ticketPayload.event_id || !ticketPayload.attendee_id || !ticketPayload.ticket_code) {
+        return null;
+      }
+
+      return ticketPayload;
+    } catch {
+      return null;
+    }
+  };
+
+  const getGateDecision = (status) => {
+    if (status === 'valid') {
+      return {
+        label: 'ALLOW ENTRY',
+        instruction: 'Attendee can enter through this gate now.'
+      };
+    }
+
+    if (status === 'already_scanned') {
+      return {
+        label: 'SEND TO HELP DESK',
+        instruction: 'Duplicate scan detected. Do not allow entry here; direct attendee to Help Desk.'
+      };
+    }
+
+    return {
+      label: 'DENY ENTRY',
+      instruction: 'Invalid ticket. Do not allow entry at this gate.'
+    };
+  };
+
+  const buildScanRequestPayload = (rawCode) => {
+    const normalizedCode = (rawCode || '').trim();
+    if (!normalizedCode) {
+      return {
+        payload: null,
+        displayCode: '',
+        message: 'Please scan or enter a QR token/ticket code'
+      };
+    }
+
+    const looksLikeJwt = normalizedCode.split('.').length === 3;
+    if (!looksLikeJwt) {
+      return {
+        payload: { ticket_code: normalizedCode },
+        displayCode: normalizedCode
+      };
+    }
+
+    const decodedTicketPayload = decodeTicketPayloadFromQrToken(normalizedCode);
+    if (decodedTicketPayload) {
+      return {
+        payload: {
+          qr_token: normalizedCode,
+          ticket_payload: decodedTicketPayload
+        },
+        displayCode: decodedTicketPayload.ticket_code
+      };
+    }
+
+    return {
+      payload: { qr_token: normalizedCode },
+      displayCode: normalizedCode
+    };
+  };
+
   const normalizeScanResult = (status, message) => ({
     success: status === 'valid',
     status,
-    message
+    message,
+    ...getGateDecision(status)
   });
 
   const appendRecentScan = (code, status) => {
+    const decision = getGateDecision(status);
+
     setRecentScans((prev) => [
       {
         code,
         status,
+        decision: decision.label,
         time: new Date().toLocaleTimeString()
       },
       ...prev.slice(0, 9)
@@ -89,23 +195,29 @@ export function StaffDashboard() {
   const handleScan = async (providedCode) => {
     const rawCode = (providedCode || ticketCode || '').trim();
 
-    if (!rawCode) {
-      alert('Please scan or enter a QR token/ticket code');
-      return;
-    }
-
     if (scanning) {
       return;
     }
 
+    const requestData = buildScanRequestPayload(rawCode);
+    if (!requestData.payload) {
+      const message = requestData.message || 'Invalid QR payload';
+      setScanResult(normalizeScanResult('invalid', message));
+      appendRecentScan(rawCode || 'N/A', 'invalid');
+      setTicketCode('');
+      setTimeout(() => setScanResult(null), 3500);
+      return;
+    }
+
+    const displayedScanCode = requestData.displayCode || rawCode;
+
     setScanning(true);
 
     try {
-      const isJwtToken = rawCode.split('.').length === 3;
-      const data = await staffAPI.scanTicket(isJwtToken ? rawCode : null, isJwtToken ? null : rawCode);
+      const data = await staffAPI.scanTicket(requestData.payload);
 
       setScanResult(normalizeScanResult(data.status, data.message));
-      appendRecentScan(rawCode, data.status);
+      appendRecentScan(displayedScanCode, data.status);
 
       if (data.status === 'valid') {
         setStats((prev) => ({ ...prev, checked_in: prev.checked_in + 1 }));
@@ -115,7 +227,7 @@ export function StaffDashboard() {
       const message = error?.data?.message || error.message || 'Scan failed';
 
       setScanResult(normalizeScanResult(status, message));
-      appendRecentScan(rawCode, status);
+      appendRecentScan(displayedScanCode, status);
     } finally {
       setTicketCode('');
       setScanning(false);
@@ -469,7 +581,7 @@ export function StaffDashboard() {
 
           {scanResult && (
             <div
-              className={`mt-4 p-3 rounded-xl flex items-center gap-2 ${
+              className={`mt-4 p-3 rounded-xl border ${
                 scanResult.status === 'valid'
                   ? 'bg-green-500/20 border border-green-500 text-green-400'
                   : scanResult.status === 'already_scanned'
@@ -477,8 +589,14 @@ export function StaffDashboard() {
                     : 'bg-red-500/20 border border-red-500 text-red-400'
               }`}
             >
-              {scanResult.status === 'valid' ? <CheckCircle className="size-5" /> : <XCircle className="size-5" />}
-              {scanResult.message}
+              <div className="flex items-start gap-2">
+                {scanResult.status === 'valid' ? <CheckCircle className="size-5 mt-0.5" /> : <XCircle className="size-5 mt-0.5" />}
+                <div>
+                  <p className="font-semibold">Gate Decision: {scanResult.decision}</p>
+                  <p className="text-sm">{scanResult.message}</p>
+                  <p className="text-xs opacity-90">{scanResult.instruction}</p>
+                </div>
+              </div>
             </div>
           )}
         </div>
@@ -492,6 +610,15 @@ export function StaffDashboard() {
                   <code className="text-xs text-gray-300 font-mono truncate max-w-[70%]">{scan.code}</code>
                   <div className="flex items-center gap-2">
                     <span className="text-xs text-gray-400">{scan.time}</span>
+                    <span className={`text-[10px] px-2 py-0.5 rounded-full ${
+                      scan.status === 'valid'
+                        ? 'bg-green-900/60 text-green-200'
+                        : scan.status === 'already_scanned'
+                          ? 'bg-yellow-900/60 text-yellow-200'
+                          : 'bg-red-900/60 text-red-200'
+                    }`}>
+                      {scan.decision}
+                    </span>
                     {scan.status === 'valid' ? (
                       <CheckCircle className="size-4 text-green-400" />
                     ) : scan.status === 'already_scanned' ? (

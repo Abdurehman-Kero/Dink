@@ -136,10 +136,14 @@ export const ticketAPI = {
 
   downloadTicket: (ticketId) => apiClient(`/tickets/${ticketId}/download`),
 
-  scanTicket: (qrToken, ticketCode) =>
+  scanTicket: (scanPayloadOrQrToken, ticketCode) =>
     apiClient("/staff/scan", {
       method: "POST",
-      body: JSON.stringify({ qr_token: qrToken, ticket_code: ticketCode }),
+      body: JSON.stringify(
+        typeof scanPayloadOrQrToken === "object" && scanPayloadOrQrToken !== null
+          ? scanPayloadOrQrToken
+          : { qr_token: scanPayloadOrQrToken, ticket_code: ticketCode },
+      ),
     }),
 };
 
@@ -172,10 +176,14 @@ export const staffAPI = {
 
   getStaffDashboard: () => apiClient("/staff/dashboard"),
 
-  scanTicket: (qrToken, ticketCode) =>
+  scanTicket: (scanPayloadOrQrToken, ticketCode) =>
     apiClient("/staff/scan", {
       method: "POST",
-      body: JSON.stringify({ qr_token: qrToken, ticket_code: ticketCode }),
+      body: JSON.stringify(
+        typeof scanPayloadOrQrToken === "object" && scanPayloadOrQrToken !== null
+          ? scanPayloadOrQrToken
+          : { qr_token: scanPayloadOrQrToken, ticket_code: ticketCode },
+      ),
     }),
 };
 

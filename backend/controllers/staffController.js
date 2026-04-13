@@ -230,21 +230,85 @@ const getStaffDashboard = async (req, res) => {
 };
 
 const normalizeScanPayload = async (payload) => {
+  const normalizeValue = (value) => (typeof value === 'string' ? value.trim() : '');
+
+  const normalizeDecodedPayload = (ticketPayload) => {
+    if (!ticketPayload || typeof ticketPayload !== 'object') {
+      return null;
+    }
+
+    return {
+      ticket_id: normalizeValue(ticketPayload.ticket_id),
+      event_id: normalizeValue(ticketPayload.event_id),
+      attendee_id: normalizeValue(ticketPayload.attendee_id),
+      ticket_code: normalizeValue(ticketPayload.ticket_code)
+    };
+  };
+
+  const hasDecodedMismatch = (verifiedPayload, clientPayload) => {
+    const keysToValidate = ['ticket_id', 'event_id', 'attendee_id', 'ticket_code'];
+
+    return keysToValidate.some((key) => {
+      const clientValue = clientPayload[key];
+      if (!clientValue) {
+        return false;
+      }
+
+      return clientValue !== verifiedPayload[key];
+    });
+  };
+
   if (payload?.qr_token) {
     const decoded = verifyTicketQrPayload(payload.qr_token);
 
-    return {
+    const verifiedPayload = {
       ticket_id: decoded.ticket_id,
       event_id: decoded.event_id,
       attendee_id: decoded.attendee_id,
       ticket_code: decoded.ticket_code
     };
+
+    if (payload?.ticket_payload !== undefined) {
+      const clientDecodedPayload = normalizeDecodedPayload(payload.ticket_payload);
+
+      if (!clientDecodedPayload) {
+        return {
+          error: 'Invalid decoded ticket payload format'
+        };
+      }
+
+      if (!clientDecodedPayload.ticket_id || !clientDecodedPayload.event_id || !clientDecodedPayload.attendee_id || !clientDecodedPayload.ticket_code) {
+        return {
+          error: 'Decoded ticket payload is incomplete'
+        };
+      }
+
+      if (hasDecodedMismatch(verifiedPayload, clientDecodedPayload)) {
+        return {
+          error: 'Decoded ticket payload does not match QR token'
+        };
+      }
+    }
+
+    return verifiedPayload;
+  }
+
+  if (payload?.ticket_payload) {
+    return {
+      error: 'QR token is required when sending decoded ticket payload'
+    };
   }
 
   // Backward-compatible fallback for manual entry by ticket code.
   if (payload?.ticket_code) {
+    const normalizedTicketCode = normalizeValue(payload.ticket_code);
+
+    if (!normalizedTicketCode) {
+      return null;
+    }
+
     const ticket = await prisma.digitalTicket.findUnique({
-      where: { ticket_code: payload.ticket_code },
+      where: { ticket_code: normalizedTicketCode },
       include: {
         order: {
           select: { user_id: true }
@@ -272,6 +336,14 @@ const scanTicket = async (req, res) => {
   try {
     const userId = req.user.id;
     const scanData = await normalizeScanPayload(req.body);
+
+    if (scanData?.error) {
+      return res.status(400).json({
+        success: false,
+        status: 'invalid',
+        message: scanData.error
+      });
+    }
 
     if (!scanData?.ticket_id || !scanData?.event_id || !scanData?.attendee_id) {
       return res.status(400).json({

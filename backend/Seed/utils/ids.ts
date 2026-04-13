@@ -1,7 +1,16 @@
 export type SeedRoleName = 'admin' | 'organizer' | 'attendee' | 'staff' | 'security';
 export type TicketTierKey = 'early' | 'regular' | 'vip';
 
-export const adminUserIds = ['user_admin_01', 'user_admin_02', 'user_admin_03'] as const;
+export const adminUserIds = [
+  'user_admin_01',
+  'user_admin_02',
+  'user_admin_03',
+  'user_admin_04',
+  'user_admin_05',
+  'user_admin_06',
+  'user_admin_07',
+  'user_admin_08'
+] as const;
 export const organizerUserIds = [
   'user_org_01',
   'user_org_02',

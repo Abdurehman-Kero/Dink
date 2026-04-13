@@ -23,7 +23,16 @@ export interface SeedUserRecord {
   last_login_at: Date | null;
 }
 
-const adminNames = ['Hana Meles', 'Dawit Bekele', 'Selamawit Tadesse'];
+const adminNames = [
+  'Hana Meles',
+  'Dawit Bekele',
+  'Selamawit Tadesse',
+  'Amanuel Getachew',
+  'Lulit Bekele',
+  'Yared Solomon',
+  'Martha Kiros',
+  'Tesfaye Hailu'
+];
 const organizerNames = [
   'Abebe Kassa',
   'Meron Alemu',

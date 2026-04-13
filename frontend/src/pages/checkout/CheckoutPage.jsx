@@ -122,7 +122,13 @@ export function CheckoutPage() {
         // Redirect to Chapa payment page
         window.location.href = data.checkout_url;
       } else {
-        setError(data.message || 'Payment initialization failed. Please try again.');
+        if (data.code === 'BANNED_FROM_ORGANIZER') {
+          const organizerName = data.ban?.organizer_name || 'this organizer';
+          const reason = data.ban?.reason ? ` Reason: ${data.ban.reason}` : '';
+          setError(`Booking blocked: You are banned from booking events by ${organizerName}.${reason}`);
+        } else {
+          setError(data.message || 'Payment initialization failed. Please try again.');
+        }
         setProcessing(false);
       }
     } catch (error) {

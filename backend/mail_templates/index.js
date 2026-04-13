@@ -6,6 +6,7 @@ const passwordReset = require('./passwordReset');
 const staffInvitation = require('./staffInvitation');
 const ticketConfirmation = require('./ticketConfirmation');
 const eventReminder = require('./eventReminder');
+const moderationNotice = require('./moderationNotice');
 
 module.exports = {
   userRegistration,
@@ -15,5 +16,6 @@ module.exports = {
   passwordReset,
   staffInvitation,
   ticketConfirmation,
-  eventReminder
+  eventReminder,
+  moderationNotice
 };

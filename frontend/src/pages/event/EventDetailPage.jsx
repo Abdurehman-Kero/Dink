@@ -5,16 +5,16 @@ import {
   Share2, ChevronLeft, ChevronRight, Check, AlertCircle, 
   Users, Award, Coffee, Heart, ExternalLink, 
   Download, QrCode, ShoppingBag, Shield, CreditCard,
-  Navigation, Info, Tag, DollarSign, ChevronDown, Lock
+  Navigation, Info, Tag, DollarSign, ChevronDown, Lock, Flag
 } from 'lucide-react';
-import { eventAPI } from '../../api/client';
+import { eventAPI, moderationAPI } from '../../api/client';
 import { useAuth } from '../../contexts/AuthContext';
 import { ReviewSection } from '../../components/groupC/ReviewSection';
 
 export function EventDetailPage() {
   const { eventId } = useParams();
   const navigate = useNavigate();
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, user } = useAuth();
   const ticketsSectionRef = useRef(null);
   const [event, setEvent] = useState(null);
   const [ticketTypes, setTicketTypes] = useState([]);
@@ -28,6 +28,10 @@ export function EventDetailPage() {
   const [showShareMenu, setShowShareMenu] = useState(false);
   const [showLoginPrompt, setShowLoginPrompt] = useState(false);
   const [shouldScrollToTickets, setShouldScrollToTickets] = useState(false);
+  const [showReportModal, setShowReportModal] = useState(false);
+  const [reportReason, setReportReason] = useState('Scam or fraud');
+  const [reportDetails, setReportDetails] = useState('');
+  const [submittingReport, setSubmittingReport] = useState(false);
 
   useEffect(() => {
     if (eventId) {
@@ -154,6 +158,47 @@ export function EventDetailPage() {
     navigator.clipboard.writeText(url);
     alert('Event link copied to clipboard!');
     setShowShareMenu(false);
+  };
+
+  const openReportModal = () => {
+    if (!isAuthenticated) {
+      setShowLoginPrompt(true);
+      return;
+    }
+
+    if (event?.organizer_id === user?.id) {
+      alert('You cannot report your own event');
+      return;
+    }
+
+    setReportReason('Scam or fraud');
+    setReportDetails('');
+    setShowReportModal(true);
+  };
+
+  const submitEventReport = async () => {
+    const normalizedReason = reportReason.trim();
+
+    if (!normalizedReason) {
+      alert('Please select or enter a report reason');
+      return;
+    }
+
+    setSubmittingReport(true);
+    try {
+      await moderationAPI.reportEvent({
+        event_id: event.id,
+        reason: normalizedReason,
+        details: reportDetails.trim() || undefined
+      });
+
+      alert('Report submitted. Super admin will review it.');
+      setShowReportModal(false);
+    } catch (error) {
+      alert(error.message || 'Failed to submit report');
+    } finally {
+      setSubmittingReport(false);
+    }
   };
 
   const formatDate = (dateString) => {
@@ -312,6 +357,11 @@ export function EventDetailPage() {
                     </div>
                   )}
                 </div>
+                {event.organizer_id !== user?.id && (
+                  <button onClick={openReportModal} className="px-5 py-3 rounded-xl font-semibold transition flex items-center gap-2 bg-red-500/20 backdrop-blur-sm text-white hover:bg-red-500/30">
+                    <Flag className="size-5" /> Report Event
+                  </button>
+                )}
               </div>
             </div>
           </div>
@@ -544,6 +594,61 @@ export function EventDetailPage() {
               </button>
             </div>
             <p className="text-xs text-gray-400 text-center mt-4">You will have 15 minutes to complete checkout</p>
+          </div>
+        </div>
+      )}
+
+      {showReportModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl max-w-md w-full p-6 animate-scaleUp">
+            <h3 className="text-xl font-bold text-gray-900 mb-2">Report This Event</h3>
+            <p className="text-sm text-gray-500 mb-4">Your report will be reviewed by super admin.</p>
+
+            <div className="space-y-3">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Reason</label>
+                <select
+                  value={reportReason}
+                  onChange={(e) => setReportReason(e.target.value)}
+                  className="w-full px-3 py-2 border rounded-xl"
+                >
+                  <option>Scam or fraud</option>
+                  <option>Misleading event details</option>
+                  <option>Harassment or unsafe content</option>
+                  <option>Hate speech</option>
+                  <option>Other policy violation</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Details (optional)</label>
+                <textarea
+                  rows={4}
+                  value={reportDetails}
+                  onChange={(e) => setReportDetails(e.target.value)}
+                  className="w-full px-3 py-2 border rounded-xl"
+                  placeholder="Add details for super admin review..."
+                />
+              </div>
+            </div>
+
+            <div className="mt-5 flex gap-3">
+              <button
+                type="button"
+                onClick={() => setShowReportModal(false)}
+                className="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-gray-700"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={submitEventReport}
+                disabled={submittingReport}
+                className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg disabled:opacity-50"
+              >
+                {submittingReport ? 'Submitting...' : 'Submit Report'}
+              </button>
+            </div>
           </div>
         </div>
       )}

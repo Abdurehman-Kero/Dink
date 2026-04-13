@@ -238,15 +238,91 @@ const initPayment = async (req, res) => {
     }
 
     const ticketTypeMap = new Map(ticketTypes.map((ticketType) => [ticketType.id, ticketType]));
+    const uniqueEventIds = [...new Set(sanitizedItems.map((item) => item.event_id))];
+    const eventRecords = await prisma.event.findMany({
+      where: {
+        id: { in: uniqueEventIds }
+      },
+      select: {
+        id: true,
+        title: true,
+        organizer_id: true,
+        organizer: {
+          select: {
+            full_name: true,
+            organizer_profile: {
+              select: {
+                organization_name: true
+              }
+            }
+          }
+        }
+      }
+    });
+
+    if (eventRecords.length !== uniqueEventIds.length) {
+      return res.status(400).json({
+        success: false,
+        message: 'One or more selected events are invalid'
+      });
+    }
+
+    const eventsById = new Map(eventRecords.map((event) => [event.id, event]));
+    const organizerIds = [...new Set(eventRecords.map((event) => event.organizer_id))];
+
+    const activeOrganizerBans = await prisma.ban.findMany({
+      where: {
+        scope: 'organizer_user',
+        status: 'active',
+        subject_user_id: userId,
+        organizer_id: { in: organizerIds }
+      },
+      select: {
+        id: true,
+        organizer_id: true,
+        reason: true
+      }
+    });
+
+    if (activeOrganizerBans.length > 0) {
+      const blockedBan = activeOrganizerBans[0];
+      const blockedEvent = eventRecords.find((event) => event.organizer_id === blockedBan.organizer_id);
+      const organizerName = blockedEvent?.organizer?.organizer_profile?.organization_name
+        || blockedEvent?.organizer?.full_name
+        || 'the organizer';
+
+      return res.status(403).json({
+        success: false,
+        code: 'BANNED_FROM_ORGANIZER',
+        message: `You are banned from booking events by ${organizerName}.`,
+        ban: {
+          id: blockedBan.id,
+          reason: blockedBan.reason,
+          organizer_id: blockedBan.organizer_id,
+          organizer_name: organizerName,
+          event_id: blockedEvent?.id || null,
+          event_title: blockedEvent?.title || null
+        }
+      });
+    }
+
     let subtotal = 0;
 
     for (const item of sanitizedItems) {
       const ticketType = ticketTypeMap.get(item.ticket_type_id);
+      const event = eventsById.get(item.event_id);
 
       if (!ticketType || ticketType.event_id !== item.event_id) {
         return res.status(400).json({
           success: false,
           message: 'Ticket type does not belong to the provided event'
+        });
+      }
+
+      if (!event) {
+        return res.status(400).json({
+          success: false,
+          message: 'One or more selected events are invalid'
         });
       }
 

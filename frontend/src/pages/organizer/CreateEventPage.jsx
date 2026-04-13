@@ -1,23 +1,52 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Calendar, MapPin, Clock, DollarSign, ImageIcon, ArrowLeft, Upload, X, Ticket, Link as LinkIcon, Loader, CheckCircle } from 'lucide-react';
-import { eventAPI } from '../../api/client';
-import { useAuth } from '../../contexts/AuthContext';
+import { Calendar, MapPin, Clock, DollarSign, ImageIcon, ArrowLeft, Upload, X, Ticket, CheckCircle } from 'lucide-react';
+import { categoryAPI, eventAPI } from '../../api/client';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
-const MAX_BANNER_URL_LENGTH = 500;
+const MAX_BANNER_URL_LENGTH = 2048;
+const CLOUDINARY_WIDGET_SCRIPT_URL = 'https://upload-widget.cloudinary.com/global/all.js';
+const CLOUDINARY_CLOUD_NAME = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME || '';
+const CLOUDINARY_UPLOAD_PRESET = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET || '';
+
+const loadCloudinaryWidgetScript = () => {
+  if (typeof window !== 'undefined' && window.cloudinary) {
+    return Promise.resolve(window.cloudinary);
+  }
+
+  return new Promise((resolve, reject) => {
+    if (typeof document === 'undefined') {
+      reject(new Error('Cloudinary uploader is unavailable in this environment.'));
+      return;
+    }
+
+    const existingScript = document.querySelector(`script[src="${CLOUDINARY_WIDGET_SCRIPT_URL}"]`);
+    if (existingScript) {
+      existingScript.addEventListener('load', () => resolve(window.cloudinary), { once: true });
+      existingScript.addEventListener('error', () => reject(new Error('Failed to load Cloudinary upload widget.')), { once: true });
+      return;
+    }
+
+    const script = document.createElement('script');
+    script.src = CLOUDINARY_WIDGET_SCRIPT_URL;
+    script.async = true;
+    script.onload = () => resolve(window.cloudinary);
+    script.onerror = () => reject(new Error('Failed to load Cloudinary upload widget.'));
+    document.body.appendChild(script);
+  });
+};
 
 export function CreateEventPage() {
   const navigate = useNavigate();
-  const { user } = useAuth();
   const [loading, setLoading] = useState(false);
   const [bannerPreview, setBannerPreview] = useState(null);
-  const [imageSource, setImageSource] = useState('url');
-  const [imageUrl, setImageUrl] = useState('');
-  const [uploading, setUploading] = useState(false);
-  const [uploadProgress, setUploadProgress] = useState(0);
+  const [categories, setCategories] = useState([]);
+  const [categoriesLoading, setCategoriesLoading] = useState(true);
+  const [categoriesError, setCategoriesError] = useState('');
+  const [widgetLoading, setWidgetLoading] = useState(false);
   const [uploadSuccess, setUploadSuccess] = useState(false);
   const [uploadError, setUploadError] = useState('');
+  const cloudinaryWidgetRef = useRef(null);
+  const cloudinaryScriptPromiseRef = useRef(null);
   const [formData, setFormData] = useState({
     title: '',
     category_id: '',
@@ -36,15 +65,6 @@ export function CreateEventPage() {
     ]
   });
 
-  const categories = [
-    { id: 'bafdcaba34a111f1adcc002b673858b6', name: 'Technology' },
-    { id: 'bafdcadd34a111f1adcc002b673858b6', name: 'Music' },
-    { id: 'bafdcae634a111f1adcc002b673858b6', name: 'Art & Culture' },
-    { id: 'bafdcaf234a111f1adcc002b673858b6', name: 'Sports' },
-    { id: 'bafdcafe34a111f1adcc002b673858b6', name: 'Educational' },
-    { id: 'bafdcb0934a111f1adcc002b673858b6', name: 'Business' }
-  ];
-
   const handleChange = (e) => {
     setFormData(prev => ({ ...prev, [e.target.name]: e.target.value }));
   };
@@ -55,122 +75,183 @@ export function CreateEventPage() {
     setFormData(prev => ({ ...prev, ticket_types: updatedTickets }));
   };
 
-  const handleImageUrlChange = (e) => {
-    const url = e.target.value;
-    setImageUrl(url);
+  useEffect(() => {
+    return () => {
+      if (cloudinaryWidgetRef.current && typeof cloudinaryWidgetRef.current.destroy === 'function') {
+        cloudinaryWidgetRef.current.destroy();
+      }
+    };
+  }, []);
 
-    if (url && url.startsWith('data:image/')) {
-      setUploadError('Base64 image data is not supported. Please upload the image or use a direct image URL.');
-      setUploadSuccess(false);
-      setFormData(prev => ({ ...prev, banner_url: '' }));
-      return;
+  useEffect(() => {
+    let isMounted = true;
+
+    const loadCategories = async () => {
+      setCategoriesLoading(true);
+      setCategoriesError('');
+
+      try {
+        const response = await categoryAPI.getAll();
+        const categoryList = Array.isArray(response?.categories)
+          ? response.categories.map((category) => ({ id: category.id, name: category.name }))
+          : [];
+
+        if (!isMounted) {
+          return;
+        }
+
+        setCategories(categoryList);
+        setFormData((prev) => {
+          if (!prev.category_id) {
+            return prev;
+          }
+
+          const exists = categoryList.some((category) => category.id === prev.category_id);
+          return exists ? prev : { ...prev, category_id: '' };
+        });
+
+        if (categoryList.length === 0) {
+          setCategoriesError('No categories are available. Please contact support.');
+        }
+      } catch (error) {
+        if (!isMounted) {
+          return;
+        }
+
+        setCategories([]);
+        setCategoriesError(error.message || 'Failed to load categories. Please refresh and try again.');
+      } finally {
+        if (isMounted) {
+          setCategoriesLoading(false);
+        }
+      }
+    };
+
+    loadCategories();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  const getCloudinaryWidget = async () => {
+    if (!CLOUDINARY_CLOUD_NAME || !CLOUDINARY_UPLOAD_PRESET) {
+      throw new Error('Cloudinary is not configured. Set VITE_CLOUDINARY_CLOUD_NAME and VITE_CLOUDINARY_UPLOAD_PRESET.');
     }
 
-    if (url.length > MAX_BANNER_URL_LENGTH) {
-      setUploadError(`Image URL is too long. Maximum length is ${MAX_BANNER_URL_LENGTH} characters.`);
-      setUploadSuccess(false);
-      setFormData(prev => ({ ...prev, banner_url: '' }));
-      return;
+    if (!cloudinaryScriptPromiseRef.current) {
+      cloudinaryScriptPromiseRef.current = loadCloudinaryWidgetScript();
     }
 
-    setBannerPreview(url);
-    setFormData(prev => ({ ...prev, banner_url: url }));
-    setUploadSuccess(false);
-    setUploadError('');
+    const cloudinary = await cloudinaryScriptPromiseRef.current;
+    if (!cloudinary || typeof cloudinary.createUploadWidget !== 'function') {
+      throw new Error('Cloudinary upload widget is unavailable.');
+    }
+
+    if (!cloudinaryWidgetRef.current) {
+      cloudinaryWidgetRef.current = cloudinary.createUploadWidget(
+        {
+          cloudName: CLOUDINARY_CLOUD_NAME,
+          uploadPreset: CLOUDINARY_UPLOAD_PRESET,
+          sources: ['local'],
+          multiple: false,
+          maxFiles: 1,
+          resourceType: 'image',
+          clientAllowedFormats: ['jpg', 'jpeg', 'png', 'gif', 'webp'],
+          maxFileSize: 5 * 1024 * 1024,
+          singleUploadAutoClose: true
+        },
+        (error, result) => {
+          if (error) {
+            setWidgetLoading(false);
+            setUploadSuccess(false);
+            setUploadError(error?.message || 'Cloudinary upload failed. Please try again.');
+            return;
+          }
+
+          if (!result) {
+            return;
+          }
+
+          if (result.event === 'success') {
+            const uploadedImageUrl = result.info?.secure_url || result.info?.url || '';
+
+            if (!uploadedImageUrl) {
+              setWidgetLoading(false);
+              setUploadSuccess(false);
+              setUploadError('Cloudinary did not return an image URL.');
+              return;
+            }
+
+            if (uploadedImageUrl.length > MAX_BANNER_URL_LENGTH) {
+              setWidgetLoading(false);
+              setUploadSuccess(false);
+              setUploadError(`Image URL is too long. Maximum length is ${MAX_BANNER_URL_LENGTH} characters.`);
+              setFormData(prev => ({ ...prev, banner_url: '' }));
+              setBannerPreview(null);
+              return;
+            }
+
+            setFormData(prev => ({ ...prev, banner_url: uploadedImageUrl }));
+            setBannerPreview(uploadedImageUrl);
+            setUploadSuccess(true);
+            setUploadError('');
+            setWidgetLoading(false);
+          }
+
+          if (result.event === 'close' || result.event === 'abort') {
+            setWidgetLoading(false);
+          }
+        }
+      );
+    }
+
+    return cloudinaryWidgetRef.current;
   };
 
-  const handleImageUpload = async (e) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    
-    // Reset states
+  const handleOpenCloudinaryWidget = async () => {
     setUploadError('');
     setUploadSuccess(false);
-    setUploadProgress(0);
-    
-    // Validate file type
-    if (!file.type.startsWith('image/')) {
-      setUploadError('Please upload an image file (JPEG, PNG, GIF, WEBP)');
-      return;
-    }
-    
-    // Validate file size (max 5MB)
-    if (file.size > 5 * 1024 * 1024) {
-      setUploadError('Image size should be less than 5MB');
-      return;
-    }
-    
-    setUploading(true);
-    
-    // Create local preview immediately
-    const localPreview = URL.createObjectURL(file);
-    setBannerPreview(localPreview);
-    
+    setWidgetLoading(true);
+
     try {
-      const token = localStorage.getItem('authToken');
-      const formDataObj = new FormData();
-      formDataObj.append('image', file);
-      
-      // Simulate progress for better UX
-      const interval = setInterval(() => {
-        setUploadProgress(prev => Math.min(prev + 10, 90));
-      }, 200);
-      
-      const response = await fetch(`${API_URL}/upload/event-image`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`
-        },
-        body: formDataObj
-      });
-      
-      clearInterval(interval);
-      
-      const data = await response.json();
-      
-      if (data.success) {
-        setUploadProgress(100);
-        setUploadSuccess(true);
-        // Use the permanent URL from the server
-        const permanentUrl = data.imageUrl;
-        setFormData(prev => ({ ...prev, banner_url: permanentUrl }));
-        setBannerPreview(permanentUrl);
-        console.log('Image uploaded successfully:', permanentUrl);
-      } else {
-        setUploadError(data.message || 'Upload failed');
-        // Keep the local preview but show error
-        setBannerPreview(localPreview);
-      }
+      const widget = await getCloudinaryWidget();
+      widget.open();
     } catch (error) {
-      console.error('Upload error:', error);
-      setUploadError('Failed to upload image. Please try again.');
-      // Keep the local preview
-      setBannerPreview(localPreview);
-    } finally {
-      setTimeout(() => {
-        setUploading(false);
-      }, 500);
+      setWidgetLoading(false);
+      setUploadSuccess(false);
+      setUploadError(error.message || 'Failed to open Cloudinary uploader.');
     }
   };
 
   const handleRemoveImage = () => {
     setBannerPreview(null);
     setFormData(prev => ({ ...prev, banner_url: '' }));
-    setImageUrl('');
     setUploadSuccess(false);
     setUploadError('');
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+
+    if (!formData.category_id) {
+      alert('Please select a valid category before creating the event.');
+      return;
+    }
+
+    const selectedCategoryExists = categories.some((category) => category.id === formData.category_id);
+    if (!selectedCategoryExists) {
+      alert('Selected category is no longer valid. Please reselect category and try again.');
+      return;
+    }
     
     if (!formData.banner_url) {
-      alert('Please add a banner image (URL or upload)');
+      alert('Please upload a banner image before creating the event.');
       return;
     }
 
     if (formData.banner_url.startsWith('data:image/')) {
-      alert('Base64 image data is not supported. Please upload the image or use a direct image URL.');
+      alert('Base64 image data is not supported. Please upload the image through Cloudinary.');
       return;
     }
 
@@ -215,7 +296,12 @@ export function CreateEventPage() {
       }
     } catch (error) {
       console.error('Create event error:', error);
-      alert(error.message || 'Failed to create event');
+      if (error?.data?.code === 'ORGANIZER_BANNED') {
+        const reason = error?.data?.ban?.reason ? ` Reason: ${error.data.ban.reason}` : '';
+        alert(`Event creation blocked. Your organizer account is currently banned.${reason}`);
+      } else {
+        alert(error.message || 'Failed to create event');
+      }
     } finally {
       setLoading(false);
     }
@@ -259,10 +345,24 @@ export function CreateEventPage() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Category *</label>
-                  <select name="category_id" value={formData.category_id} onChange={handleChange} required className="w-full px-4 py-3 border rounded-xl">
-                    <option value="">Select category</option>
+                  <select
+                    name="category_id"
+                    value={formData.category_id}
+                    onChange={handleChange}
+                    required
+                    disabled={categoriesLoading || categories.length === 0}
+                    className="w-full px-4 py-3 border rounded-xl disabled:bg-gray-100 disabled:text-gray-500"
+                  >
+                    <option value="">
+                      {categoriesLoading
+                        ? 'Loading categories...'
+                        : categories.length === 0
+                          ? 'No categories available'
+                          : 'Select category'}
+                    </option>
                     {categories.map(cat => <option key={cat.id} value={cat.id}>{cat.name}</option>)}
                   </select>
+                  {categoriesError && <p className="text-xs text-red-600 mt-1">{categoriesError}</p>}
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Event Type</label>
@@ -288,71 +388,33 @@ export function CreateEventPage() {
             <h2 className="text-xl font-semibold text-gray-900 mb-4 flex items-center gap-2">
               <ImageIcon className="size-5 text-green-600" /> Banner Image *
             </h2>
-            
-            <div className="flex gap-2 mb-4">
-              <button
-                type="button"
-                onClick={() => setImageSource('url')}
-                className={`px-4 py-2 rounded-lg text-sm font-medium transition ${imageSource === 'url' ? 'bg-green-600 text-white' : 'bg-gray-100 text-gray-700'}`}
-              >
-                <LinkIcon className="size-4 inline mr-1" /> Image URL
-              </button>
-              <button
-                type="button"
-                onClick={() => setImageSource('upload')}
-                className={`px-4 py-2 rounded-lg text-sm font-medium transition ${imageSource === 'upload' ? 'bg-green-600 text-white' : 'bg-gray-100 text-gray-700'}`}
-              >
-                <Upload className="size-4 inline mr-1" /> Upload Image
-              </button>
-            </div>
 
-            {imageSource === 'url' ? (
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Image URL</label>
-                <input
-                  type="url"
-                  placeholder="https://images.unsplash.com/photo-1540575467063-178a50c2df87"
-                  value={imageUrl}
-                  onChange={handleImageUrlChange}
-                  className="w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-green-500"
-                />
-                <p className="text-xs text-gray-500 mt-1">Enter a direct image URL (use Unsplash, Imgur, or your own server)</p>
-              </div>
-            ) : (
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Upload Image from Computer</label>
-                <input
-                  type="file"
-                  accept="image/*"
-                  onChange={handleImageUpload}
-                  disabled={uploading}
-                  className="w-full px-4 py-3 border rounded-xl file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-green-50 file:text-green-700 hover:file:bg-green-100"
-                />
-                {uploading && (
-                  <div className="mt-3">
-                    <div className="flex items-center gap-2">
-                      <Loader className="size-4 animate-spin text-green-600" />
-                      <span className="text-sm text-gray-600">Uploading... {uploadProgress}%</span>
-                    </div>
-                    <div className="w-full bg-gray-200 rounded-full h-2 mt-2">
-                      <div className="bg-green-600 h-2 rounded-full transition-all" style={{ width: `${uploadProgress}%` }} />
-                    </div>
-                  </div>
-                )}
-                {uploadError && (
-                  <div className="mt-2 p-2 bg-red-50 border border-red-200 rounded-lg">
-                    <p className="text-sm text-red-600">{uploadError}</p>
-                  </div>
-                )}
-                {uploadSuccess && (
-                  <div className="mt-2 p-2 bg-green-50 border border-green-200 rounded-lg flex items-center gap-2">
-                    <CheckCircle className="size-4 text-green-600" />
-                    <p className="text-sm text-green-600">Image uploaded successfully!</p>
-                  </div>
-                )}
-                <p className="text-xs text-gray-500 mt-2">Upload JPG, PNG, or GIF (Max 5MB). Image will be stored on our server permanently.</p>
-              </div>
-            )}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Upload Image with Cloudinary</label>
+              <button
+                type="button"
+                onClick={handleOpenCloudinaryWidget}
+                disabled={widgetLoading}
+                className="w-full md:w-auto inline-flex items-center justify-center gap-2 px-5 py-3 rounded-xl bg-green-600 text-white font-semibold hover:bg-green-700 disabled:opacity-60"
+              >
+                <Upload className="size-4" />
+                {widgetLoading ? 'Opening uploader...' : 'Upload Banner Image'}
+              </button>
+              <p className="text-xs text-gray-500 mt-2">Use the Cloudinary uploader to select or drag and drop an image (JPG, PNG, GIF, WEBP up to 5MB).</p>
+
+              {uploadError && (
+                <div className="mt-3 p-2 bg-red-50 border border-red-200 rounded-lg">
+                  <p className="text-sm text-red-600">{uploadError}</p>
+                </div>
+              )}
+
+              {uploadSuccess && (
+                <div className="mt-3 p-2 bg-green-50 border border-green-200 rounded-lg flex items-center gap-2">
+                  <CheckCircle className="size-4 text-green-600" />
+                  <p className="text-sm text-green-600">Image uploaded to Cloudinary successfully.</p>
+                </div>
+              )}
+            </div>
 
             {bannerPreview && (
               <div className="mt-4">
@@ -377,14 +439,14 @@ export function CreateEventPage() {
                 />
                 {formData.banner_url && (
                   <p className="text-xs text-green-600 mt-2 break-all">
-                    ✓ Image URL: {formData.banner_url.substring(0, 80)}...
+                    ✓ Image URL: {formData.banner_url.length > 80 ? `${formData.banner_url.substring(0, 80)}...` : formData.banner_url}
                   </p>
                 )}
               </div>
             )}
             {!bannerPreview && (
               <div className="mt-4 p-4 bg-yellow-50 rounded-xl border border-yellow-200">
-                <p className="text-sm text-yellow-700">⚠️ Banner image is required. Please add an image URL or upload one from your computer.</p>
+                <p className="text-sm text-yellow-700">⚠️ Banner image is required. Please upload one using the Cloudinary button above.</p>
               </div>
             )}
           </div>
@@ -432,7 +494,7 @@ export function CreateEventPage() {
 
           <div className="flex gap-4 pt-4">
             <button type="button" onClick={() => navigate('/organizer/dashboard')} className="px-6 py-3 border-2 border-gray-300 text-gray-700 rounded-xl font-semibold">Cancel</button>
-            <button type="submit" disabled={loading || !formData.banner_url} className="flex-1 px-6 py-3 bg-gradient-to-r from-green-600 to-green-700 text-white rounded-xl font-semibold disabled:opacity-50">
+            <button type="submit" disabled={loading || !formData.banner_url || categoriesLoading || !formData.category_id} className="flex-1 px-6 py-3 bg-gradient-to-r from-green-600 to-green-700 text-white rounded-xl font-semibold disabled:opacity-50">
               {loading ? 'Creating Event...' : 'Create Event'}
             </button>
           </div>

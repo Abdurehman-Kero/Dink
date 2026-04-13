@@ -76,6 +76,13 @@ export const eventAPI = {
   }),
 };
 
+// Category APIs
+export const categoryAPI = {
+  getAll: () => apiClient('/categories'),
+
+  getById: (id) => apiClient(`/categories/${id}`),
+};
+
 // User APIs
 export const userAPI = {
   getProfile: () => apiClient('/users/profile'),
@@ -194,6 +201,64 @@ export const notificationAPI = {
   
   markAsRead: (notificationId) => apiClient(`/notifications/${notificationId}/read`, {
     method: 'PUT',
+  }),
+};
+
+// Moderation APIs
+export const moderationAPI = {
+  reportReviewUser: (payload) => apiClient('/moderation/reports/review-user', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  }),
+
+  reportEvent: (payload) => apiClient('/moderation/reports/event', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  }),
+
+  getMyBans: () => apiClient('/moderation/my-bans'),
+
+  getBanById: (banId) => apiClient(`/moderation/bans/${banId}`),
+
+  submitAppeal: (payload) => apiClient('/moderation/appeals', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  }),
+
+  getOrganizerReports: (status = '') => apiClient(`/moderation/organizer/reports${status ? `?status=${status}` : ''}`),
+
+  getOrganizerReportById: (reportId) => apiClient(`/moderation/organizer/reports/${reportId}`),
+
+  decideOrganizerReport: (reportId, payload) => apiClient(`/moderation/organizer/reports/${reportId}/decision`, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  }),
+
+  getOrganizerAppeals: (status = '') => apiClient(`/moderation/organizer/appeals${status ? `?status=${status}` : ''}`),
+
+  getOrganizerAppealById: (appealId) => apiClient(`/moderation/organizer/appeals/${appealId}`),
+
+  decideOrganizerAppeal: (appealId, payload) => apiClient(`/moderation/organizer/appeals/${appealId}/decision`, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  }),
+
+  getAdminReports: (status = '') => apiClient(`/moderation/admin/reports${status ? `?status=${status}` : ''}`),
+
+  getAdminReportById: (reportId) => apiClient(`/moderation/admin/reports/${reportId}`),
+
+  decideAdminReport: (reportId, payload) => apiClient(`/moderation/admin/reports/${reportId}/decision`, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  }),
+
+  getAdminAppeals: (status = '') => apiClient(`/moderation/admin/appeals${status ? `?status=${status}` : ''}`),
+
+  getAdminAppealById: (appealId) => apiClient(`/moderation/admin/appeals/${appealId}`),
+
+  decideAdminAppeal: (appealId, payload) => apiClient(`/moderation/admin/appeals/${appealId}/decision`, {
+    method: 'POST',
+    body: JSON.stringify(payload),
   }),
 };
 

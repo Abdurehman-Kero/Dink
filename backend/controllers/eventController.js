@@ -1,7 +1,7 @@
 const { prisma } = require('../config/database');
 const { generateId } = require('../utils/id');
 
-const MAX_BANNER_URL_LENGTH = 500;
+const MAX_BANNER_URL_LENGTH = 2048;
 const DATA_IMAGE_URL_REGEX = /^data:image\/[a-zA-Z0-9.+-]+;base64,/i;
 
 const normalizeBannerUrl = (bannerUrl) => {
@@ -23,7 +23,7 @@ const validateBannerUrl = (bannerUrl) => {
   }
 
   if (isBase64ImageDataUrl(bannerUrl)) {
-    return 'Banner image must be an uploaded file URL, not a base64 data URL. Upload the image first using /api/upload/event-image.';
+    return 'Banner image must be a regular hosted image URL (for example Cloudinary), not a base64 data URL.';
   }
 
   if (bannerUrl.length > MAX_BANNER_URL_LENGTH) {
@@ -124,6 +124,48 @@ const createEvent = async (req, res) => {
     } = req.body;
     
     const organizerId = req.user.id;
+    const normalizedCategoryId = typeof category_id === 'string' ? category_id.trim() : '';
+
+    if (req.user.role_id === 2) {
+      const activePlatformBan = await prisma.ban.findFirst({
+        where: {
+          scope: 'platform_organizer',
+          status: 'active',
+          subject_user_id: organizerId
+        },
+        select: {
+          id: true,
+          reason: true,
+          created_at: true
+        }
+      });
+
+      if (activePlatformBan) {
+        return res.status(403).json({
+          success: false,
+          code: 'ORGANIZER_BANNED',
+          message: 'Your organizer account is currently banned and cannot create new events.',
+          ban: activePlatformBan
+        });
+      }
+    }
+
+    if (!normalizedCategoryId) {
+      return res.status(400).json({ message: 'Category is required' });
+    }
+
+    const categoryExists = await prisma.eventCategory.findUnique({
+      where: { id: normalizedCategoryId },
+      select: { id: true }
+    });
+
+    if (!categoryExists) {
+      return res.status(400).json({
+        message: 'Invalid category selected. Please refresh the page and choose a valid category.',
+        field: 'category_id'
+      });
+    }
+
     const normalizedBannerUrl = normalizeBannerUrl(banner_url);
     const bannerValidationError = validateBannerUrl(normalizedBannerUrl);
 
@@ -137,7 +179,7 @@ const createEvent = async (req, res) => {
           id: generateId(),
           organizer_id: organizerId,
           title,
-          category_id,
+          category_id: normalizedCategoryId,
           event_type,
           description,
           start_datetime: new Date(start_datetime),
@@ -181,6 +223,13 @@ const createEvent = async (req, res) => {
       return res.status(400).json({
         message: 'One or more fields exceed the allowed size. Please shorten your input and try again.',
         field: error?.meta?.target || null
+      });
+    }
+
+    if (error?.code === 'P2003') {
+      return res.status(400).json({
+        message: 'Invalid category selected. Please refresh categories and try again.',
+        field: 'category_id'
       });
     }
 

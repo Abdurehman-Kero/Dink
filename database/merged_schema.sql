@@ -200,7 +200,7 @@ CREATE TABLE IF NOT EXISTS events (
     event_type VARCHAR(50) NOT NULL,
     description TEXT NOT NULL,
     rich_description_html TEXT,
-    banner_url VARCHAR(500),
+    banner_url VARCHAR(2048),
     logo_url VARCHAR(500),
     status ENUM('draft', 'published', 'cancelled', 'completed') DEFAULT 'draft',
     visibility ENUM('public', 'private') DEFAULT 'public',

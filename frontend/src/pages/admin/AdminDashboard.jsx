@@ -1,17 +1,17 @@
 import { useEffect, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import { 
   Users, Calendar, DollarSign, TrendingUp, CheckCircle, 
   XCircle, Clock, Shield, UserCheck, Ticket, Award,
-  Eye, RefreshCw, ChevronRight, Building, Mail, Phone
+  Eye, RefreshCw, ChevronRight, Building, Mail, Phone, FileWarning, Scale
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
+import { moderationAPI } from '../../api/client';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
 export function AdminDashboard() {
   const { user, logout } = useAuth();
-  const navigate = useNavigate();
   const [stats, setStats] = useState({
     total_users: 0,
     total_organizers: 0,
@@ -26,6 +26,14 @@ export function AdminDashboard() {
   const [loading, setLoading] = useState(true);
   const [selectedApp, setSelectedApp] = useState(null);
   const [showModal, setShowModal] = useState(false);
+  const [reports, setReports] = useState([]);
+  const [appeals, setAppeals] = useState([]);
+  const [selectedReport, setSelectedReport] = useState(null);
+  const [selectedAppeal, setSelectedAppeal] = useState(null);
+  const [showReportModal, setShowReportModal] = useState(false);
+  const [showAppealModal, setShowAppealModal] = useState(false);
+  const [moderationNote, setModerationNote] = useState('');
+  const [moderationActionLoading, setModerationActionLoading] = useState(false);
 
   useEffect(() => {
     fetchDashboardData();
@@ -60,10 +68,90 @@ export function AdminDashboard() {
           total_attendees: usersData.attendees || 0
         }));
       }
+
+      try {
+        const [reportsData, appealsData] = await Promise.all([
+          moderationAPI.getAdminReports('pending'),
+          moderationAPI.getAdminAppeals('pending')
+        ]);
+
+        setReports(reportsData.reports || []);
+        setAppeals(appealsData.appeals || []);
+      } catch (moderationError) {
+        console.error('Error fetching moderation dashboard data:', moderationError);
+      }
     } catch (error) {
       console.error('Error fetching dashboard:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const openReportModal = (report) => {
+    setSelectedReport(report);
+    setModerationNote('');
+    setShowReportModal(true);
+  };
+
+  const openAppealModal = (appeal) => {
+    setSelectedAppeal(appeal);
+    setModerationNote('');
+    setShowAppealModal(true);
+  };
+
+  const handleReportDecision = async (action) => {
+    if (!selectedReport?.id) {
+      return;
+    }
+
+    if (!confirm(`Are you sure you want to ${action} this report?`)) {
+      return;
+    }
+
+    setModerationActionLoading(true);
+    try {
+      await moderationAPI.decideAdminReport(selectedReport.id, {
+        action,
+        note: moderationNote.trim() || undefined
+      });
+
+      alert(`Report ${action}ed successfully.`);
+      setShowReportModal(false);
+      setSelectedReport(null);
+      setModerationNote('');
+      fetchDashboardData();
+    } catch (decisionError) {
+      alert(decisionError.message || `Failed to ${action} report`);
+    } finally {
+      setModerationActionLoading(false);
+    }
+  };
+
+  const handleAppealDecision = async (action) => {
+    if (!selectedAppeal?.id) {
+      return;
+    }
+
+    if (!confirm(`Are you sure you want to ${action} this appeal?`)) {
+      return;
+    }
+
+    setModerationActionLoading(true);
+    try {
+      await moderationAPI.decideAdminAppeal(selectedAppeal.id, {
+        action,
+        note: moderationNote.trim() || undefined
+      });
+
+      alert(`Appeal ${action}d successfully.`);
+      setShowAppealModal(false);
+      setSelectedAppeal(null);
+      setModerationNote('');
+      fetchDashboardData();
+    } catch (decisionError) {
+      alert(decisionError.message || `Failed to ${action} appeal`);
+    } finally {
+      setModerationActionLoading(false);
     }
   };
 
@@ -85,7 +173,7 @@ export function AdminDashboard() {
           alert(`Organizer approved! Email sent to ${data.email}`);
           fetchDashboardData();
         }
-      } catch (error) {
+      } catch {
         alert('Error approving organizer');
       }
     }
@@ -111,7 +199,7 @@ export function AdminDashboard() {
           alert(`Organizer rejected. Reason: ${reason}`);
           fetchDashboardData();
         }
-      } catch (error) {
+      } catch {
         alert('Error rejecting organizer');
       }
     }
@@ -186,6 +274,65 @@ export function AdminDashboard() {
         </div>
 
         {/* Quick Actions */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+          <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
+            <div className="px-6 py-4 border-b flex items-center justify-between">
+              <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+                <FileWarning className="size-5 text-orange-500" /> Pending Event Reports
+              </h2>
+              <span className="text-xs px-2 py-1 rounded-full bg-orange-100 text-orange-700">{reports.length}</span>
+            </div>
+            <div className="divide-y">
+              {reports.length === 0 ? (
+                <p className="px-6 py-8 text-sm text-gray-500">No pending event reports.</p>
+              ) : (
+                reports.slice(0, 5).map((report) => (
+                  <div key={report.id} className="px-6 py-4">
+                    <p className="text-sm font-semibold text-gray-900">{report.event?.title || 'Reported event'}</p>
+                    <p className="text-xs text-gray-500 mt-1">Reason: {report.reason}</p>
+                    <p className="text-xs text-gray-400 mt-1">Organizer: {report.subject_user?.organizer_profile?.organization_name || report.subject_user?.full_name || 'N/A'}</p>
+                    <button
+                      type="button"
+                      onClick={() => openReportModal(report)}
+                      className="mt-2 text-xs text-green-700 hover:text-green-800"
+                    >
+                      View Details
+                    </button>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+
+          <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
+            <div className="px-6 py-4 border-b flex items-center justify-between">
+              <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+                <Scale className="size-5 text-amber-600" /> Pending Organizer Appeals
+              </h2>
+              <span className="text-xs px-2 py-1 rounded-full bg-amber-100 text-amber-700">{appeals.length}</span>
+            </div>
+            <div className="divide-y">
+              {appeals.length === 0 ? (
+                <p className="px-6 py-8 text-sm text-gray-500">No pending organizer appeals.</p>
+              ) : (
+                appeals.slice(0, 5).map((appeal) => (
+                  <div key={appeal.id} className="px-6 py-4">
+                    <p className="text-sm font-semibold text-gray-900">{appeal.appellant?.organizer_profile?.organization_name || appeal.appellant?.full_name || 'Organizer'}</p>
+                    <p className="text-xs text-gray-500 mt-1 line-clamp-2">{appeal.message}</p>
+                    <button
+                      type="button"
+                      onClick={() => openAppealModal(appeal)}
+                      className="mt-2 text-xs text-green-700 hover:text-green-800"
+                    >
+                      View Appeal
+                    </button>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        </div>
+
         <div className="bg-white rounded-2xl shadow-sm">
           <div className="px-6 py-4 border-b"><h2 className="text-xl font-bold">Quick Actions</h2></div>
           <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -209,6 +356,108 @@ export function AdminDashboard() {
                 {selectedApp.website_url && <div><p><strong>Website:</strong> <a href={`https://${selectedApp.website_url}`} target="_blank" className="text-green-600">{selectedApp.website_url}</a></p></div>}
               </div>
               <div className="flex gap-3 mt-6 pt-4 border-t"><button onClick={() => { handleApprove(selectedApp.id); setShowModal(false); }} className="flex-1 py-2 bg-green-600 text-white rounded-lg">Approve</button><button onClick={() => { handleReject(selectedApp.id); setShowModal(false); }} className="flex-1 py-2 border border-red-500 text-red-600 rounded-lg">Reject</button></div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showReportModal && selectedReport && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl w-full max-w-lg p-6">
+            <h3 className="text-xl font-bold text-gray-900 mb-2">Event Report Details</h3>
+            <p className="text-sm text-gray-500 mb-4">Review the report and choose to ban organizer or reject.</p>
+
+            <div className="space-y-2 text-sm mb-4">
+              <p><span className="font-semibold">Event:</span> {selectedReport.event?.title || 'N/A'}</p>
+              <p><span className="font-semibold">Reporter:</span> {selectedReport.reporter?.full_name || 'N/A'}</p>
+              <p><span className="font-semibold">Organizer:</span> {selectedReport.subject_user?.organizer_profile?.organization_name || selectedReport.subject_user?.full_name || 'N/A'}</p>
+              <p><span className="font-semibold">Reason:</span> {selectedReport.reason}</p>
+              {selectedReport.details && <p><span className="font-semibold">Details:</span> {selectedReport.details}</p>}
+            </div>
+
+            <label className="block text-sm font-medium text-gray-700 mb-1">Decision Note (optional)</label>
+            <textarea
+              rows={3}
+              value={moderationNote}
+              onChange={(e) => setModerationNote(e.target.value)}
+              className="w-full px-3 py-2 border rounded-xl"
+              placeholder="Explain your decision..."
+            />
+
+            <div className="mt-5 flex gap-3">
+              <button
+                type="button"
+                onClick={() => setShowReportModal(false)}
+                className="flex-1 px-4 py-2 border rounded-xl"
+              >
+                Close
+              </button>
+              <button
+                type="button"
+                onClick={() => handleReportDecision('reject')}
+                disabled={moderationActionLoading}
+                className="flex-1 px-4 py-2 border border-gray-300 rounded-xl text-gray-700 disabled:opacity-50"
+              >
+                Reject
+              </button>
+              <button
+                type="button"
+                onClick={() => handleReportDecision('ban')}
+                disabled={moderationActionLoading}
+                className="flex-1 px-4 py-2 bg-red-600 text-white rounded-xl disabled:opacity-50"
+              >
+                Ban Organizer
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showAppealModal && selectedAppeal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl w-full max-w-lg p-6">
+            <h3 className="text-xl font-bold text-gray-900 mb-2">Organizer Appeal Details</h3>
+            <p className="text-sm text-gray-500 mb-4">Approve to unban organizer, or reject to keep the ban active.</p>
+
+            <div className="space-y-2 text-sm mb-4">
+              <p><span className="font-semibold">Organizer:</span> {selectedAppeal.appellant?.organizer_profile?.organization_name || selectedAppeal.appellant?.full_name || 'N/A'}</p>
+              <p><span className="font-semibold">Ban reason:</span> {selectedAppeal.ban?.reason || 'N/A'}</p>
+              <p><span className="font-semibold">Appeal:</span> {selectedAppeal.message}</p>
+            </div>
+
+            <label className="block text-sm font-medium text-gray-700 mb-1">Decision Note (optional)</label>
+            <textarea
+              rows={3}
+              value={moderationNote}
+              onChange={(e) => setModerationNote(e.target.value)}
+              className="w-full px-3 py-2 border rounded-xl"
+              placeholder="Explain your decision..."
+            />
+
+            <div className="mt-5 flex gap-3">
+              <button
+                type="button"
+                onClick={() => setShowAppealModal(false)}
+                className="flex-1 px-4 py-2 border rounded-xl"
+              >
+                Close
+              </button>
+              <button
+                type="button"
+                onClick={() => handleAppealDecision('reject')}
+                disabled={moderationActionLoading}
+                className="flex-1 px-4 py-2 border border-gray-300 rounded-xl text-gray-700 disabled:opacity-50"
+              >
+                Reject
+              </button>
+              <button
+                type="button"
+                onClick={() => handleAppealDecision('approve')}
+                disabled={moderationActionLoading}
+                className="flex-1 px-4 py-2 bg-green-600 text-white rounded-xl disabled:opacity-50"
+              >
+                Approve & Unban
+              </button>
             </div>
           </div>
         </div>

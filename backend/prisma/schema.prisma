@@ -94,6 +94,33 @@ enum CheckInStatus {
   invalid
 }
 
+enum ReportScope {
+  organizer_user
+  platform_event
+}
+
+enum ReportStatus {
+  pending
+  resolved_ban
+  resolved_rejected
+}
+
+enum BanScope {
+  organizer_user
+  platform_organizer
+}
+
+enum BanStatus {
+  active
+  lifted
+}
+
+enum AppealStatus {
+  pending
+  approved
+  rejected
+}
+
 model Role {
   id         Int      @id @default(autoincrement())
   role_name  String   @unique @db.VarChar(50)
@@ -132,6 +159,16 @@ model User {
   check_in_logs               CheckInLog[]         @relation("CheckInStaff")
   platform_fee_payments       PlatformFeePayment[]
   payouts                     Payout[]
+  reported_reports            Report[]             @relation("ReportReporter")
+  subject_reports             Report[]             @relation("ReportSubject")
+  assigned_reports            Report[]             @relation("ReportAssignedOrganizer")
+  resolved_reports            Report[]             @relation("ReportResolvedBy")
+  subject_bans                Ban[]                @relation("BanSubject")
+  organizer_bans              Ban[]                @relation("BanOrganizer")
+  bans_created                Ban[]                @relation("BanCreatedBy")
+  bans_lifted                 Ban[]                @relation("BanLiftedBy")
+  appeals_submitted           Appeal[]             @relation("AppealAppellant")
+  appeals_decided             Appeal[]             @relation("AppealDecidedBy")
 
   @@index([role_id])
   @@index([status])
@@ -179,7 +216,7 @@ model Event {
   category_id     String          @db.VarChar(36)
   event_type      String          @db.VarChar(50)
   description     String          @db.Text
-  banner_url      String?         @db.VarChar(500)
+  banner_url      String?         @db.VarChar(2048)
   status          EventStatus     @default(draft)
   visibility      Visibility      @default(public)
   is_featured     Boolean         @default(false)
@@ -199,6 +236,7 @@ model Event {
   digital_tickets DigitalTicket[]
   check_in_logs   CheckInLog[]
   order_items     OrderItem[]
+  reports         Report[]
 
   @@index([organizer_id])
   @@index([status])
@@ -236,6 +274,7 @@ model Review {
   user        User          @relation(fields: [user_id], references: [id])
   event       Event         @relation(fields: [event_id], references: [id], onDelete: Cascade)
   replies     ReviewReply[]
+  reports     Report[]
 
   @@unique([user_id, event_id])
   @@index([event_id])
@@ -386,10 +425,90 @@ model Notification {
   type       String    @db.VarChar(50)
   title      String    @db.VarChar(255)
   message    String    @db.Text
+  metadata   Json?
   read_at    DateTime?
   created_at DateTime  @default(now())
   user       User      @relation(fields: [user_id], references: [id], onDelete: Cascade)
 
   @@index([user_id, read_at])
   @@map("notifications")
+}
+
+model Report {
+  id                 String       @id @db.VarChar(36)
+  scope              ReportScope
+  status             ReportStatus @default(pending)
+  reporter_id        String       @db.VarChar(36)
+  subject_user_id    String?      @db.VarChar(36)
+  organizer_id       String?      @db.VarChar(36)
+  event_id           String?      @db.VarChar(36)
+  review_id          String?      @db.VarChar(36)
+  reason             String       @db.VarChar(255)
+  details            String?      @db.Text
+  resolution_note    String?      @db.Text
+  resolved_by_id     String?      @db.VarChar(36)
+  resolved_at        DateTime?
+  created_at         DateTime     @default(now())
+  updated_at         DateTime     @updatedAt
+  reporter           User         @relation("ReportReporter", fields: [reporter_id], references: [id])
+  subject_user       User?        @relation("ReportSubject", fields: [subject_user_id], references: [id], onDelete: SetNull)
+  assigned_organizer User?        @relation("ReportAssignedOrganizer", fields: [organizer_id], references: [id], onDelete: SetNull)
+  event              Event?       @relation(fields: [event_id], references: [id], onDelete: SetNull)
+  review             Review?      @relation(fields: [review_id], references: [id], onDelete: SetNull)
+  resolved_by        User?        @relation("ReportResolvedBy", fields: [resolved_by_id], references: [id], onDelete: SetNull)
+
+  @@index([scope, status])
+  @@index([reporter_id, status])
+  @@index([organizer_id, status])
+  @@index([event_id, status])
+  @@index([subject_user_id, status])
+  @@map("reports")
+}
+
+model Ban {
+  id              String    @id @db.VarChar(36)
+  scope           BanScope
+  status          BanStatus @default(active)
+  subject_user_id String    @db.VarChar(36)
+  organizer_id    String?   @db.VarChar(36)
+  created_by_id   String    @db.VarChar(36)
+  lifted_by_id    String?   @db.VarChar(36)
+  reason          String    @db.VarChar(255)
+  details         String?   @db.Text
+  report_id       String?   @db.VarChar(36)
+  created_at      DateTime  @default(now())
+  updated_at      DateTime  @updatedAt
+  lifted_at       DateTime?
+  subject_user    User      @relation("BanSubject", fields: [subject_user_id], references: [id])
+  organizer       User?     @relation("BanOrganizer", fields: [organizer_id], references: [id], onDelete: SetNull)
+  created_by      User      @relation("BanCreatedBy", fields: [created_by_id], references: [id])
+  lifted_by       User?     @relation("BanLiftedBy", fields: [lifted_by_id], references: [id], onDelete: SetNull)
+  appeals         Appeal[]
+
+  @@index([scope, status])
+  @@index([subject_user_id, status])
+  @@index([organizer_id, status])
+  @@index([report_id])
+  @@map("bans")
+}
+
+model Appeal {
+  id                String       @id @db.VarChar(36)
+  ban_id            String       @db.VarChar(36)
+  appellant_user_id String       @db.VarChar(36)
+  status            AppealStatus @default(pending)
+  message           String       @db.Text
+  decision_note     String?      @db.Text
+  decided_by_id     String?      @db.VarChar(36)
+  decided_at        DateTime?
+  created_at        DateTime     @default(now())
+  updated_at        DateTime     @updatedAt
+  ban               Ban          @relation(fields: [ban_id], references: [id], onDelete: Cascade)
+  appellant         User         @relation("AppealAppellant", fields: [appellant_user_id], references: [id])
+  decided_by        User?        @relation("AppealDecidedBy", fields: [decided_by_id], references: [id], onDelete: SetNull)
+
+  @@index([ban_id, status])
+  @@index([appellant_user_id, status])
+  @@index([status, created_at])
+  @@map("appeals")
 }

@@ -23,6 +23,7 @@ const payoutRoutes = require('./routes/payoutRoutes');
 const platformFeeRoutes = require('./routes/platformFeeRoutes');
 const categoryRoutes = require('./routes/categoryRoutes');
 const analyticsRoutes = require('./routes/analyticsRoutes');
+const moderationRoutes = require('./routes/moderationRoutes');
 // Admin Management Routes
 const adminEventRoutes = require('./routes/adminEventRoutes');
 const adminCategoryRoutes = require('./routes/adminCategoryRoutes');
@@ -102,6 +103,9 @@ app.use('/api/payouts', payoutRoutes);
 
 // Platform Fee Routes (Organizer pays admin)
 app.use('/api/platform-fee', platformFeeRoutes);
+
+// Moderation Routes (Reports, Bans, Appeals)
+app.use('/api/moderation', moderationRoutes);
 
 // 404 Handler
 app.use((req, res) => {

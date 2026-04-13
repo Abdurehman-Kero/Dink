@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Star, MessageCircle, ThumbsUp, Flag, Calendar, User } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
+import { moderationAPI } from '../../api/client';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
@@ -14,6 +15,11 @@ export function ReviewSection({ eventId }) {
   const [hoverRating, setHoverRating] = useState(0);
   const [reviewText, setReviewText] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [showReportModal, setShowReportModal] = useState(false);
+  const [selectedReview, setSelectedReview] = useState(null);
+  const [reportReason, setReportReason] = useState('Harassment or abuse');
+  const [reportDetails, setReportDetails] = useState('');
+  const [reportSubmitting, setReportSubmitting] = useState(false);
 
   useEffect(() => {
     fetchReviews();
@@ -62,10 +68,52 @@ export function ReviewSection({ eventId }) {
       } else {
         alert(data.message || 'Failed to submit review');
       }
-    } catch (error) {
+    } catch {
       alert('Error submitting review');
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  const openReportModal = (review) => {
+    if (!isAuthenticated) {
+      alert('Please login to report comments');
+      return;
+    }
+
+    setSelectedReview(review);
+    setReportReason('Harassment or abuse');
+    setReportDetails('');
+    setShowReportModal(true);
+  };
+
+  const handleSubmitReport = async () => {
+    if (!selectedReview?.id) {
+      return;
+    }
+
+    const normalizedReason = reportReason.trim();
+    if (!normalizedReason) {
+      alert('Please provide a reason for this report');
+      return;
+    }
+
+    setReportSubmitting(true);
+    try {
+      await moderationAPI.reportReviewUser({
+        review_id: selectedReview.id,
+        reason: normalizedReason,
+        details: reportDetails.trim() || undefined
+      });
+
+      alert('Report submitted successfully. The organizer will review it.');
+      setShowReportModal(false);
+      setSelectedReview(null);
+      setReportDetails('');
+    } catch (error) {
+      alert(error.message || 'Failed to submit report');
+    } finally {
+      setReportSubmitting(false);
     }
   };
 
@@ -184,12 +232,79 @@ export function ReviewSection({ eventId }) {
                     </div>
                   </div>
                   <p className="text-gray-700 mt-2">{review.review_text}</p>
+                  {review.user_id !== user?.id && (
+                    <div className="mt-3 flex justify-end">
+                      <button
+                        type="button"
+                        onClick={() => openReportModal(review)}
+                        className="inline-flex items-center gap-1 text-xs text-red-600 hover:text-red-700"
+                      >
+                        <Flag className="size-3" />
+                        Report User
+                      </button>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
           ))
         )}
       </div>
+
+      {showReportModal && selectedReview && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl w-full max-w-md p-6">
+            <h3 className="text-lg font-bold text-gray-900 mb-2">Report This Comment</h3>
+            <p className="text-sm text-gray-500 mb-4">Your report will be sent to the event organizer for moderation review.</p>
+
+            <div className="space-y-3">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Reason</label>
+                <select
+                  value={reportReason}
+                  onChange={(e) => setReportReason(e.target.value)}
+                  className="w-full px-3 py-2 border rounded-xl"
+                >
+                  <option>Harassment or abuse</option>
+                  <option>Spam or scam</option>
+                  <option>Hate speech</option>
+                  <option>False information</option>
+                  <option>Other policy violation</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Details (optional)</label>
+                <textarea
+                  rows={4}
+                  value={reportDetails}
+                  onChange={(e) => setReportDetails(e.target.value)}
+                  className="w-full px-3 py-2 border rounded-xl"
+                  placeholder="Add context for the organizer..."
+                />
+              </div>
+            </div>
+
+            <div className="mt-5 flex gap-3">
+              <button
+                type="button"
+                onClick={() => setShowReportModal(false)}
+                className="flex-1 px-4 py-2 border rounded-xl"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleSubmitReport}
+                disabled={reportSubmitting}
+                className="flex-1 px-4 py-2 bg-red-600 text-white rounded-xl disabled:opacity-50"
+              >
+                {reportSubmitting ? 'Submitting...' : 'Submit Report'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

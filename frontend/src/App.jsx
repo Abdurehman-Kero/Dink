@@ -20,6 +20,7 @@ import { CreateEventPage } from './pages/organizer/CreateEventPage';
 import { StaffManagementPage } from './pages/organizer/StaffManagementPage';
 import { PayoutSettingsPage } from './pages/organizer/PayoutSettingsPage';
 import { EventAnalyticsPage } from './pages/organizer/EventAnalyticsPage';
+import { EventsAnalyticsOverview } from './pages/organizer/EventsAnalyticsOverview';
 import { AdminDashboard } from './pages/admin/AdminDashboard';
 import { AdminApprovalPage } from './pages/admin/AdminApprovalPage';
 import { SecurityScannerPage } from './pages/security/SecurityScannerPage';
@@ -62,7 +63,23 @@ function App() {
           <Route path="/staff/management" element={<StaffManagementPage />} />
           <Route path="/organizer/payouts" element={<PayoutSettingsPage />} />
           <Route
+            path="/organizer/events-analytics"
+            element={<EventsAnalyticsOverview />}
+          />
+          <Route
+            path="/organizer/events-analitics"
+            element={<EventsAnalyticsOverview />}
+          />
+          <Route
             path="/organizer/analytics/:eventId"
+            element={<EventAnalyticsPage />}
+          />
+          <Route
+            path="/organizer/events-analytics/:eventId"
+            element={<EventAnalyticsPage />}
+          />
+          <Route
+            path="/organizer/events-analitics/:eventId"
             element={<EventAnalyticsPage />}
           />
           <Route path="/admin/dashboard" element={<AdminDashboard />} />

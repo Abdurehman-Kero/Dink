@@ -6,14 +6,14 @@ import {
   Camera,
   CheckCircle,
   Clock,
-  LogOut,
   MapPin,
   QrCode,
-  Shield,
   Ticket,
+  Upload,
   Users,
   XCircle
 } from 'lucide-react';
+import jsQR from 'jsqr';
 
 import { staffAPI } from '../../api/client';
 import { useAuth } from '../../contexts/AuthContext';
@@ -30,7 +30,10 @@ export function StaffDashboard() {
   const [recentScans, setRecentScans] = useState([]);
   const [cameraActive, setCameraActive] = useState(false);
   const [cameraError, setCameraError] = useState('');
-  const [supportsNativeScanner, setSupportsNativeScanner] = useState(false);
+  const [imageDecodeError, setImageDecodeError] = useState('');
+  const [decodingImage, setDecodingImage] = useState(false);
+  const [supportsCameraAccess, setSupportsCameraAccess] = useState(false);
+  const [supportsLiveScanner, setSupportsLiveScanner] = useState(false);
 
   const videoRef = useRef(null);
   const streamRef = useRef(null);
@@ -40,7 +43,8 @@ export function StaffDashboard() {
 
   useEffect(() => {
     fetchStaffDashboard();
-    setSupportsNativeScanner(Boolean(window.BarcodeDetector && navigator.mediaDevices?.getUserMedia));
+    setSupportsCameraAccess(Boolean(navigator.mediaDevices?.getUserMedia));
+    setSupportsLiveScanner(Boolean(window.BarcodeDetector));
 
     return () => {
       stopCamera();
@@ -138,7 +142,7 @@ export function StaffDashboard() {
           }, 1200);
         }
       }
-    } catch (error) {
+    } catch {
       // Ignore frame decode errors and continue scanning.
     }
 
@@ -146,13 +150,14 @@ export function StaffDashboard() {
   };
 
   const startCamera = async () => {
-    if (!supportsNativeScanner) {
-      setCameraError('Native QR scanning is not supported on this browser/device.');
+    if (!supportsCameraAccess) {
+      setCameraError('Camera access is not supported in this browser. Use photo scan below.');
       return;
     }
 
     try {
       setCameraError('');
+      setImageDecodeError('');
       const stream = await navigator.mediaDevices.getUserMedia({
         video: {
           facingMode: { ideal: 'environment' }
@@ -167,13 +172,143 @@ export function StaffDashboard() {
         await videoRef.current.play();
       }
 
-      detectorRef.current = new window.BarcodeDetector({ formats: ['qr_code'] });
       setCameraActive(true);
-      rafRef.current = requestAnimationFrame(scanFrame);
+
+      if (supportsLiveScanner) {
+        detectorRef.current = new window.BarcodeDetector({ formats: ['qr_code'] });
+        rafRef.current = requestAnimationFrame(scanFrame);
+      } else {
+        detectorRef.current = null;
+        setCameraError('Live auto-scanning is not supported here. Camera is active: use Capture Frame or Scan From Photo.');
+      }
     } catch (error) {
       console.error('Failed to start camera:', error);
-      setCameraError('Unable to access camera. Please allow permission or use manual scan input.');
+      setCameraError('Unable to access camera. Please allow permission or use photo/manual scan.');
       stopCamera();
+    }
+  };
+
+  const captureAndDecodeFromCamera = async () => {
+    if (!videoRef.current || videoRef.current.readyState < 2) {
+      setImageDecodeError('Camera is not ready yet. Please wait a moment and try again.');
+      return;
+    }
+
+    setImageDecodeError('');
+    setDecodingImage(true);
+
+    try {
+      const sourceWidth = videoRef.current.videoWidth || videoRef.current.clientWidth;
+      const sourceHeight = videoRef.current.videoHeight || videoRef.current.clientHeight;
+
+      if (!sourceWidth || !sourceHeight) {
+        setImageDecodeError('Unable to capture image from camera.');
+        return;
+      }
+
+      const canvas = document.createElement('canvas');
+      canvas.width = sourceWidth;
+      canvas.height = sourceHeight;
+
+      const context = canvas.getContext('2d', { willReadFrequently: true });
+      if (!context) {
+        setImageDecodeError('Unable to process camera frame for QR scanning.');
+        return;
+      }
+
+      context.drawImage(videoRef.current, 0, 0, sourceWidth, sourceHeight);
+      const imageData = context.getImageData(0, 0, sourceWidth, sourceHeight);
+      const decoded = jsQR(imageData.data, imageData.width, imageData.height, {
+        inversionAttempts: 'attemptBoth'
+      });
+
+      if (!decoded?.data) {
+        setImageDecodeError('No QR code found in captured frame. Try moving closer or improving lighting.');
+        return;
+      }
+
+      setTicketCode(decoded.data);
+      await handleScan(decoded.data);
+    } catch (error) {
+      console.error('Camera frame decode failed:', error);
+      setImageDecodeError('Failed to decode QR from camera frame. Try again or use Scan From Photo.');
+    } finally {
+      setDecodingImage(false);
+    }
+  };
+
+  const decodeQrFromImageFile = async (file) => new Promise((resolve, reject) => {
+    const imageUrl = URL.createObjectURL(file);
+    const image = new Image();
+
+    image.onload = () => {
+      try {
+        const maxDimension = 2000;
+        const sourceWidth = image.naturalWidth || image.width;
+        const sourceHeight = image.naturalHeight || image.height;
+        const scale = Math.min(1, maxDimension / Math.max(sourceWidth, sourceHeight));
+
+        const width = Math.max(1, Math.floor(sourceWidth * scale));
+        const height = Math.max(1, Math.floor(sourceHeight * scale));
+
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+
+        const context = canvas.getContext('2d', { willReadFrequently: true });
+        if (!context) {
+          reject(new Error('Unable to process image for QR scanning.'));
+          return;
+        }
+
+        context.drawImage(image, 0, 0, width, height);
+        const imageData = context.getImageData(0, 0, width, height);
+        const decoded = jsQR(imageData.data, imageData.width, imageData.height, {
+          inversionAttempts: 'attemptBoth'
+        });
+
+        resolve(decoded?.data || null);
+      } catch (error) {
+        reject(error);
+      } finally {
+        URL.revokeObjectURL(imageUrl);
+      }
+    };
+
+    image.onerror = () => {
+      URL.revokeObjectURL(imageUrl);
+      reject(new Error('Could not read the selected image.'));
+    };
+
+    image.src = imageUrl;
+  });
+
+  const handleImageScan = async (event) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+
+    if (!file) {
+      return;
+    }
+
+    setImageDecodeError('');
+    setDecodingImage(true);
+
+    try {
+      const decodedValue = await decodeQrFromImageFile(file);
+
+      if (!decodedValue) {
+        setImageDecodeError('No QR code found in the selected image. Try a clearer photo.');
+        return;
+      }
+
+      setTicketCode(decodedValue);
+      await handleScan(decodedValue);
+    } catch (error) {
+      console.error('Image QR decode failed:', error);
+      setImageDecodeError('Failed to decode QR from image. Please try a different photo or manual code.');
+    } finally {
+      setDecodingImage(false);
     }
   };
 
@@ -197,12 +332,6 @@ export function StaffDashboard() {
     setCameraActive(false);
   };
 
-  const handleLogout = () => {
-    stopCamera();
-    logout();
-    navigate('/login');
-  };
-
   if (!staffInfo) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-900">
@@ -213,18 +342,14 @@ export function StaffDashboard() {
 
   return (
     <div className="min-h-screen bg-gray-900">
-      <div className="bg-gray-800 border-b border-gray-700 px-4 py-3 flex justify-between items-center sticky top-0 z-10">
-        <div className="flex items-center gap-2">
-          <Shield className="size-6 text-green-400" />
-          <span className="text-white font-bold">DEMS Security</span>
-          <span className="text-xs text-gray-400 bg-gray-700 px-2 py-1 rounded-full">{staffInfo.assigned_role}</span>
-        </div>
-        <button onClick={handleLogout} className="flex items-center gap-2 px-3 py-1.5 text-gray-300 hover:text-white">
-          <LogOut className="size-4" /> Logout
-        </button>
-      </div>
-
       <div className="max-w-2xl mx-auto px-4 py-6">
+        <div className="mb-4 flex items-center justify-between">
+          <div>
+            <h1 className="text-white text-xl font-bold">Security Scanner</h1>
+            <p className="text-xs text-gray-400">Role: {staffInfo.assigned_role}</p>
+          </div>
+        </div>
+
         <div className="bg-gray-800 rounded-2xl p-5 mb-6">
           <h2 className="text-white font-bold text-lg mb-2">{staffInfo.event_name}</h2>
           <div className="flex flex-wrap gap-3 text-gray-400 text-sm">
@@ -273,17 +398,26 @@ export function StaffDashboard() {
                 <Camera className="size-4" /> Start Camera
               </button>
             ) : (
-              <button
-                onClick={stopCamera}
-                className="px-4 py-2 bg-red-600 text-white rounded-lg font-semibold hover:bg-red-700 transition flex items-center gap-2"
-              >
-                <XCircle className="size-4" /> Stop Camera
-              </button>
+              <>
+                <button
+                  onClick={captureAndDecodeFromCamera}
+                  disabled={decodingImage || scanning}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 transition disabled:opacity-50 flex items-center gap-2"
+                >
+                  <Camera className="size-4" /> Capture Frame
+                </button>
+                <button
+                  onClick={stopCamera}
+                  className="px-4 py-2 bg-red-600 text-white rounded-lg font-semibold hover:bg-red-700 transition flex items-center gap-2"
+                >
+                  <XCircle className="size-4" /> Stop Camera
+                </button>
+              </>
             )}
 
-            {!supportsNativeScanner && (
+            {!supportsLiveScanner && (
               <span className="text-xs text-yellow-300 bg-yellow-900/40 px-2 py-1 rounded">
-                Native scanner not supported in this browser
+                Live auto-scan not supported. Use Capture Frame or Scan From Photo.
               </span>
             )}
           </div>
@@ -294,6 +428,26 @@ export function StaffDashboard() {
               {cameraError}
             </div>
           )}
+
+          <div className="mb-4 p-3 rounded-lg bg-blue-900/30 border border-blue-700/60">
+            <label className="text-sm text-blue-100 font-medium flex items-center gap-2 mb-2">
+              <Upload className="size-4" /> Scan From Photo
+            </label>
+            <input
+              type="file"
+              accept="image/*"
+              capture="environment"
+              onChange={handleImageScan}
+              disabled={decodingImage || scanning}
+              className="w-full text-sm text-gray-200 file:mr-3 file:px-3 file:py-2 file:border-0 file:rounded-lg file:bg-blue-600 file:text-white hover:file:bg-blue-700 disabled:opacity-60"
+            />
+            <p className="text-xs text-blue-200/90 mt-2">
+              Works as fallback when live camera scanning is unsupported: take or select a QR photo.
+            </p>
+            {imageDecodeError && (
+              <p className="text-xs text-red-300 mt-2">{imageDecodeError}</p>
+            )}
+          </div>
 
           <div className="flex gap-3">
             <input
@@ -306,10 +460,10 @@ export function StaffDashboard() {
             />
             <button
               onClick={() => handleScan()}
-              disabled={scanning}
+              disabled={scanning || decodingImage}
               className="px-6 py-3 bg-green-600 text-white rounded-xl font-semibold hover:bg-green-700 transition disabled:opacity-50"
             >
-              {scanning ? '...' : 'Validate'}
+              {scanning || decodingImage ? '...' : 'Validate'}
             </button>
           </div>
 

@@ -5,6 +5,7 @@ const { sendTemplateEmail } = require('../services/mailService');
 const SUPER_ADMIN_EMAIL = 'nexussphere0974@gmail.com';
 
 const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:5173';
+const MAX_REASON_LENGTH = 255;
 
 const cleanText = (value) => (typeof value === 'string' ? value.trim() : '');
 
@@ -16,6 +17,14 @@ const ensureDecisionAction = (action, allowedActions) => {
 const asNullable = (value) => {
   const normalized = cleanText(value);
   return normalized.length ? normalized : null;
+};
+
+const runNonBlocking = async (label, task) => {
+  try {
+    await task();
+  } catch (error) {
+    console.error(`${label} failed:`, error?.message || error);
+  }
 };
 
 const isSuperAdmin = (user) => user?.email === SUPER_ADMIN_EMAIL;
@@ -86,33 +95,20 @@ const addReport = async (req, res) => {
       return res.status(400).json({ success: false, message: 'reason is required' });
     }
 
+    if (normalizedReason.length > MAX_REASON_LENGTH) {
+      return res.status(400).json({ success: false, message: `reason must be ${MAX_REASON_LENGTH} characters or fewer` });
+    }
+
     const review = await prisma.review.findUnique({
       where: { id: review_id },
-      include: {
-        user: {
-          select: {
-            id: true,
-            full_name: true,
-            email: true
-          }
-        },
+      select: {
+        id: true,
+        user_id: true,
         event: {
           select: {
             id: true,
             title: true,
-            organizer_id: true,
-            organizer: {
-              select: {
-                id: true,
-                full_name: true,
-                email: true,
-                organizer_profile: {
-                  select: {
-                    organization_name: true
-                  }
-                }
-              }
-            }
+            organizer_id: true
           }
         }
       }
@@ -124,6 +120,42 @@ const addReport = async (req, res) => {
 
     if (review.user_id === reporterId) {
       return res.status(400).json({ success: false, message: 'You cannot report your own comment' });
+    }
+
+    if (!review.event?.organizer_id) {
+      return res.status(400).json({ success: false, message: 'This review cannot be reported because organizer data is missing' });
+    }
+
+    const [reportedUser, organizer] = await Promise.all([
+      prisma.user.findUnique({
+        where: { id: review.user_id },
+        select: {
+          id: true,
+          full_name: true,
+          email: true
+        }
+      }),
+      prisma.user.findUnique({
+        where: { id: review.event.organizer_id },
+        select: {
+          id: true,
+          full_name: true,
+          email: true,
+          organizer_profile: {
+            select: {
+              organization_name: true
+            }
+          }
+        }
+      })
+    ]);
+
+    if (!reportedUser) {
+      return res.status(400).json({ success: false, message: 'This review cannot be reported because the reported user account is missing' });
+    }
+
+    if (!organizer) {
+      return res.status(400).json({ success: false, message: 'This review cannot be reported because the organizer account is missing' });
     }
 
     const existingPending = await prisma.report.findFirst({
@@ -150,8 +182,8 @@ const addReport = async (req, res) => {
         id: generateId(),
         scope: 'organizer_user',
         reporter_id: reporterId,
-        subject_user_id: review.user_id,
-        organizer_id: review.event.organizer_id,
+        subject_user_id: reportedUser.id,
+        organizer_id: organizer.id,
         event_id: review.event.id,
         review_id: review.id,
         reason: normalizedReason,
@@ -162,7 +194,7 @@ const addReport = async (req, res) => {
     const reporterName = req.user.full_name || 'A user';
 
     await createNotification({
-      user_id: review.event.organizer_id,
+      user_id: organizer.id,
       type: 'report_submitted',
       title: 'New user report submitted',
       message: `${reporterName} reported a user comment on ${review.event.title}.`,
@@ -185,31 +217,35 @@ const addReport = async (req, res) => {
       }
     });
 
-    await sendModerationEmail({
-      to: review.event.organizer.email,
-      subject: 'New User Report Requires Review',
-      heading: 'A new report needs your action',
-      intro: `${reporterName} reported a user comment on ${review.event.title}.`,
-      details: [
-        `Reason: ${normalizedReason}`,
-        `Reported user: ${review.user.full_name || 'Unknown user'}`,
-        `Event: ${review.event.title}`
-      ],
-      ctaLabel: 'Open Organizer Dashboard',
-      ctaUrl: `${FRONTEND_URL}/organizer/dashboard`
+    await runNonBlocking('Send organizer moderation email', async () => {
+      await sendModerationEmail({
+        to: organizer.email,
+        subject: 'New User Report Requires Review',
+        heading: 'A new report needs your action',
+        intro: `${reporterName} reported a user comment on ${review.event.title}.`,
+        details: [
+          `Reason: ${normalizedReason}`,
+          `Reported user: ${reportedUser.full_name || 'Unknown user'}`,
+          `Event: ${review.event.title}`
+        ],
+        ctaLabel: 'Open Organizer Dashboard',
+        ctaUrl: `${FRONTEND_URL}/organizer/dashboard`
+      });
     });
 
-    await sendModerationEmail({
-      to: req.user.email,
-      subject: 'Your Report Was Submitted',
-      heading: 'Report submitted successfully',
-      intro: 'Your report was sent to the organizer for review.',
-      details: [
-        `Event: ${review.event.title}`,
-        `Reason: ${normalizedReason}`
-      ],
-      ctaLabel: 'View Event',
-      ctaUrl: `${FRONTEND_URL}/event/${review.event.id}`
+    await runNonBlocking('Send reporter moderation email', async () => {
+      await sendModerationEmail({
+        to: req.user.email,
+        subject: 'Your Report Was Submitted',
+        heading: 'Report submitted successfully',
+        intro: 'Your report was sent to the organizer for review.',
+        details: [
+          `Event: ${review.event.title}`,
+          `Reason: ${normalizedReason}`
+        ],
+        ctaLabel: 'View Event',
+        ctaUrl: `${FRONTEND_URL}/event/${review.event.id}`
+      });
     });
 
     return res.status(201).json({ success: true, report_id: report.id });
@@ -233,21 +269,16 @@ const addEventReport = async (req, res) => {
       return res.status(400).json({ success: false, message: 'reason is required' });
     }
 
+    if (normalizedReason.length > MAX_REASON_LENGTH) {
+      return res.status(400).json({ success: false, message: `reason must be ${MAX_REASON_LENGTH} characters or fewer` });
+    }
+
     const event = await prisma.event.findUnique({
       where: { id: event_id },
-      include: {
-        organizer: {
-          select: {
-            id: true,
-            full_name: true,
-            email: true,
-            organizer_profile: {
-              select: {
-                organization_name: true
-              }
-            }
-          }
-        }
+      select: {
+        id: true,
+        title: true,
+        organizer_id: true
       }
     });
 
@@ -255,8 +286,30 @@ const addEventReport = async (req, res) => {
       return res.status(404).json({ success: false, message: 'Event not found' });
     }
 
+    if (!event.organizer_id) {
+      return res.status(400).json({ success: false, message: 'This event cannot be reported because organizer data is missing' });
+    }
+
     if (event.organizer_id === reporterId) {
       return res.status(400).json({ success: false, message: 'You cannot report your own event' });
+    }
+
+    const organizer = await prisma.user.findUnique({
+      where: { id: event.organizer_id },
+      select: {
+        id: true,
+        full_name: true,
+        email: true,
+        organizer_profile: {
+          select: {
+            organization_name: true
+          }
+        }
+      }
+    });
+
+    if (!organizer) {
+      return res.status(400).json({ success: false, message: 'This event cannot be reported because organizer account is missing' });
     }
 
     const existingPending = await prisma.report.findFirst({
@@ -281,8 +334,8 @@ const addEventReport = async (req, res) => {
         id: generateId(),
         scope: 'platform_event',
         reporter_id: reporterId,
-        subject_user_id: event.organizer_id,
-        organizer_id: event.organizer_id,
+        subject_user_id: organizer.id,
+        organizer_id: organizer.id,
         event_id: event.id,
         reason: normalizedReason,
         details: asNullable(details)
@@ -307,17 +360,19 @@ const addEventReport = async (req, res) => {
         }
       });
 
-      await sendModerationEmail({
-        to: superAdmin.email,
-        subject: 'New Event Report Requires Review',
-        heading: 'A reported event needs review',
-        intro: `${req.user.full_name || 'A user'} submitted a report for ${event.title}.`,
-        details: [
-          `Reason: ${normalizedReason}`,
-          `Organizer: ${event.organizer.organizer_profile?.organization_name || event.organizer.full_name || 'Unknown organizer'}`
-        ],
-        ctaLabel: 'Open Admin Dashboard',
-        ctaUrl: `${FRONTEND_URL}/admin/dashboard`
+      await runNonBlocking('Send super admin moderation email', async () => {
+        await sendModerationEmail({
+          to: superAdmin.email,
+          subject: 'New Event Report Requires Review',
+          heading: 'A reported event needs review',
+          intro: `${req.user.full_name || 'A user'} submitted a report for ${event.title}.`,
+          details: [
+            `Reason: ${normalizedReason}`,
+            `Organizer: ${organizer.organizer_profile?.organization_name || organizer.full_name || 'Unknown organizer'}`
+          ],
+          ctaLabel: 'Open Admin Dashboard',
+          ctaUrl: `${FRONTEND_URL}/admin/dashboard`
+        });
       });
     }
 
@@ -333,17 +388,19 @@ const addEventReport = async (req, res) => {
       }
     });
 
-    await sendModerationEmail({
-      to: req.user.email,
-      subject: 'Your Event Report Was Submitted',
-      heading: 'Event report submitted',
-      intro: 'Your report was sent to super admin for moderation review.',
-      details: [
-        `Event: ${event.title}`,
-        `Reason: ${normalizedReason}`
-      ],
-      ctaLabel: 'View Event',
-      ctaUrl: `${FRONTEND_URL}/event/${event.id}`
+    await runNonBlocking('Send reporter event-report email', async () => {
+      await sendModerationEmail({
+        to: req.user.email,
+        subject: 'Your Event Report Was Submitted',
+        heading: 'Event report submitted',
+        intro: 'Your report was sent to super admin for moderation review.',
+        details: [
+          `Event: ${event.title}`,
+          `Reason: ${normalizedReason}`
+        ],
+        ctaLabel: 'View Event',
+        ctaUrl: `${FRONTEND_URL}/event/${event.id}`
+      });
     });
 
     return res.status(201).json({ success: true, report_id: report.id });
@@ -498,6 +555,10 @@ const decideOrganizerReport = async (req, res) => {
 
     if (report.status !== 'pending') {
       return res.status(400).json({ success: false, message: 'Report is already resolved' });
+    }
+
+    if (action === 'ban' && !report.subject_user_id) {
+      return res.status(400).json({ success: false, message: 'This report cannot be resolved with a ban because the reported user is missing' });
     }
 
     let resolvedReport;
@@ -821,6 +882,10 @@ const decideAdminReport = async (req, res) => {
 
     if (report.status !== 'pending') {
       return res.status(400).json({ success: false, message: 'Report is already resolved' });
+    }
+
+    if (action === 'ban' && !report.subject_user_id) {
+      return res.status(400).json({ success: false, message: 'This report cannot be resolved with a ban because the organizer account is missing' });
     }
 
     if (action === 'ban') {
@@ -1254,6 +1319,10 @@ const decideOrganizerAppeal = async (req, res) => {
       return res.status(400).json({ success: false, message: 'Appeal is already resolved' });
     }
 
+    if (appeal.ban.status !== 'active') {
+      return res.status(400).json({ success: false, message: 'Appeal cannot be decided because the ban is no longer active' });
+    }
+
     if (action === 'approve') {
       await prisma.$transaction(async (tx) => {
         await tx.appeal.update({
@@ -1474,6 +1543,10 @@ const decideAdminAppeal = async (req, res) => {
 
     if (appeal.status !== 'pending') {
       return res.status(400).json({ success: false, message: 'Appeal is already resolved' });
+    }
+
+    if (appeal.ban.status !== 'active') {
+      return res.status(400).json({ success: false, message: 'Appeal cannot be decided because the ban is no longer active' });
     }
 
     if (action === 'approve') {

@@ -4,7 +4,8 @@ import {
   LayoutDashboard, Shield, UserCog, Heart, Menu, X,
   Home, Star, Settings, HelpCircle, LogIn, Coffee,
   TrendingUp, DollarSign, Users, CheckCircle, Award,
-  Bell, BellRing, UserCheck, Eye, Globe, Building, Mail, Phone
+  Bell, BellRing, UserCheck, Eye, Globe, Building, Mail, Phone,
+  Tag, BarChart3, Wallet, CreditCard, Smartphone
 } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { NotificationBell } from './NotificationBell';
@@ -99,14 +100,14 @@ export function Navbar() {
             <Link to="/admin/approvals" className={`relative text-sm flex items-center gap-2 px-3 py-2 rounded-lg transition ${location.pathname === '/admin/approvals' ? 'bg-white/10 text-white' : 'text-gray-300 hover:text-white hover:bg-white/5'}`}>
               <UserCheck className="size-4" /> Approvals
             </Link>
+            {/* <Link to="/admin/events" className={`relative text-sm flex items-center gap-2 px-3 py-2 rounded-lg transition ${location.pathname === '/admin/events' ? 'bg-white/10 text-white' : 'text-gray-300 hover:text-white hover:bg-white/5'}`}>
+              <Calendar className="size-4" /> Events
+            </Link> */}
+            {/* <Link to="/admin/categories" className={`relative text-sm flex items-center gap-2 px-3 py-2 rounded-lg transition ${location.pathname === '/admin/categories' ? 'bg-white/10 text-white' : 'text-gray-300 hover:text-white hover:bg-white/5'}`}>
+              <Tag className="size-4" /> Categories
+            </Link> */}
             <Link to="/admin/users" className={`relative text-sm flex items-center gap-2 px-3 py-2 rounded-lg transition ${location.pathname === '/admin/users' ? 'bg-white/10 text-white' : 'text-gray-300 hover:text-white hover:bg-white/5'}`}>
               <Users className="size-4" /> Users
-            </Link>
-            <Link to="/admin/events" className={`relative text-sm flex items-center gap-2 px-3 py-2 rounded-lg transition ${location.pathname === '/admin/events' ? 'bg-white/10 text-white' : 'text-gray-300 hover:text-white hover:bg-white/5'}`}>
-              <Calendar className="size-4" /> Events
-            </Link>
-            <Link to="/admin/categories" className={`relative text-sm flex items-center gap-2 px-3 py-2 rounded-lg transition ${location.pathname === '/admin/categories' ? 'bg-white/10 text-white' : 'text-gray-300 hover:text-white hover:bg-white/5'}`}>
-              <Star className="size-4" /> Categories
             </Link>
           </div>
           
@@ -155,7 +156,10 @@ export function Navbar() {
               <UserCog className="size-4" /> Staff
             </Link>
             <Link to="/organizer/payouts" className={`text-sm flex items-center gap-2 px-4 py-2 rounded-lg transition ${location.pathname === '/organizer/payouts' ? 'text-green-600 bg-green-50 dark:bg-green-900/20' : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'}`}>
-              <DollarSign className="size-4" /> Payouts
+              <Wallet className="size-4" /> Payouts
+            </Link>
+            <Link to="/organizer/analytics" className={`text-sm flex items-center gap-2 px-4 py-2 rounded-lg transition ${location.pathname === '/organizer/analytics' ? 'text-green-600 bg-green-50 dark:bg-green-900/20' : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'}`}>
+              <BarChart3 className="size-4" /> Analytics
             </Link>
           </div>
           
@@ -180,6 +184,9 @@ export function Navbar() {
                     </Link>
                     <Link to="/organizer/analytics" onClick={() => setShowProfileMenu(false)} className="flex items-center gap-3 px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800">
                       <TrendingUp className="size-4" /> Analytics
+                    </Link>
+                    <Link to="/organizer/payouts" onClick={() => setShowProfileMenu(false)} className="flex items-center gap-3 px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800">
+                      <DollarSign className="size-4" /> Payouts
                     </Link>
                     <div className="border-t border-gray-100 dark:border-gray-800 my-1" />
                     <button onClick={handleLogout} className="w-full flex items-center gap-3 px-4 py-2 text-sm text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20">

@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
   CreditCard, Lock, CheckCircle, Clock, AlertCircle, 
-  Shield, User, Ticket, Loader
+  Shield, User, Ticket, Loader, XCircle
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 
@@ -14,6 +14,7 @@ export function CheckoutPage() {
   const [reservations, setReservations] = useState([]);
   const [loading, setLoading] = useState(true);
   const [processing, setProcessing] = useState(false);
+  const [paymentComplete, setPaymentComplete] = useState(false);
   const [timeLeft, setTimeLeft] = useState({ minutes: 15, seconds: 0 });
   const [orderNumber, setOrderNumber] = useState('');
   const [error, setError] = useState('');
@@ -72,7 +73,6 @@ export function CheckoutPage() {
   };
 
   const handlePayment = async () => {
-    // Validate form
     if (!formData.email) {
       setError('Please enter your email address');
       return;
@@ -87,12 +87,15 @@ export function CheckoutPage() {
     
     const total = reservations.reduce((sum, r) => sum + r.total_price, 0);
     
+    // Prepare items array for the backend
+    const items = reservations.map(res => ({
+      ticket_type_id: res.ticket_type.id,
+      quantity: res.quantity,
+      unit_price: res.ticket_type.price,
+      subtotal: res.subtotal
+    }));
+    
     try {
-      console.log('Sending payment request...');
-      console.log('Order ID:', orderNumber);
-      console.log('Total:', total);
-      console.log('Email:', formData.email);
-      
       const response = await fetch(`${API_URL}/payments/init`, {
         method: 'POST',
         headers: {
@@ -104,7 +107,8 @@ export function CheckoutPage() {
           total_amount: total,
           user_email: formData.email,
           user_phone: formData.phone || '0912345678',
-          user_name: formData.full_name
+          user_name: formData.full_name,
+          items: items
         })
       });
       
@@ -112,7 +116,6 @@ export function CheckoutPage() {
       console.log('Payment response:', data);
       
       if (data.success && data.checkout_url) {
-        // Redirect to Chapa payment page
         window.location.href = data.checkout_url;
       } else {
         setError(data.message || 'Payment initialization failed. Please try again.');
@@ -314,3 +317,5 @@ export function CheckoutPage() {
     </div>
   );
 }
+
+export default CheckoutPage;

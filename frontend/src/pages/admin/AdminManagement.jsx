@@ -71,7 +71,7 @@ export function AdminManagement() {
       });
       const data = await response.json();
       if (data.success) {
-        alert(`Admin created successfully! Email sent to ${formData.email}`);
+        alert(`Admin created successfully!`);
         setShowAddModal(false);
         setFormData({ full_name: '', email: '', password: '', phone: '' });
         fetchAdmins();
@@ -107,18 +107,24 @@ export function AdminManagement() {
   };
 
   const filteredAdmins = admins.filter(admin =>
-    admin.full_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    admin.email.toLowerCase().includes(searchTerm.toLowerCase())
+    admin.full_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    admin.email?.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   const isSuperAdmin = user?.email === 'nexussphere0974@gmail.com';
 
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="animate-spin size-12 border-4 border-green-200 border-t-green-600 rounded-full" />
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-gray-50 py-8 px-4">
       <div className="fixed top-16 left-0 right-0 h-1 flex z-40">
-        <div className="flex-1 bg-green-600" />
-        <div className="flex-1 bg-yellow-400" />
-        <div className="flex-1 bg-red-600" />
+        <div className="flex-1 bg-green-600" /><div className="flex-1 bg-yellow-400" /><div className="flex-1 bg-red-600" />
       </div>
 
       <div className="max-w-7xl mx-auto">
@@ -139,7 +145,7 @@ export function AdminManagement() {
           )}
         </div>
 
-        {/* Search and Refresh */}
+        {/* Search */}
         <div className="bg-white rounded-2xl p-6 shadow-sm mb-6">
           <div className="flex gap-4">
             <div className="flex-1 relative">
@@ -241,9 +247,6 @@ export function AdminManagement() {
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Phone Number</label>
                   <input type="tel" name="phone" value={formData.phone} onChange={handleChange} className="w-full px-4 py-2 border rounded-xl" />
-                </div>
-                <div className="bg-blue-50 p-3 rounded-xl text-sm text-blue-800">
-                  The new admin will receive an email with login credentials.
                 </div>
                 <div className="flex gap-3 pt-4">
                   <button type="button" onClick={() => setShowAddModal(false)} className="flex-1 px-4 py-2 border rounded-xl">Cancel</button>

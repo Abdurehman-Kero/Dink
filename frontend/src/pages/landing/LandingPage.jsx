@@ -231,13 +231,6 @@ export function LandingPage() {
                   <Calendar className="size-5 group-hover:rotate-12 transition-transform" />
                   Start Organizing
                 </Link>
-                <Link
-                  to="/login"
-                  className="px-8 py-4 bg-white/10 backdrop-blur-sm text-white rounded-xl font-semibold hover:bg-white/20 transition-all duration-300 flex items-center gap-2"
-                >
-                  <User className="size-5" />
-                  Sign In
-                </Link>
               </div>
 
               {/* Trust badges */}

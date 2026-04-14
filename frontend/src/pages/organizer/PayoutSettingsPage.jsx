@@ -210,8 +210,8 @@ export function PayoutSettingsPage() {
         <div className="bg-white rounded-2xl p-5 shadow-sm border mb-8">
           {stats.total_fee_due > 0 && (
             <div className="mb-3 p-3 bg-yellow-50 border border-yellow-200 rounded-lg text-sm text-yellow-800">
-              You have pending event(s). Pay the platform fee to publish them on
-              discovery.
+              You have pending event(s). After you pay, super admin must confirm
+              the payment before those events are published on discovery.
             </div>
           )}
           <p className="text-sm text-gray-600">

@@ -22,6 +22,7 @@ import {
   Scale,
   Plus,
   Trash2,
+  Send,
 } from "lucide-react";
 import { useAuth } from "../../contexts/AuthContext";
 import { adminCategoryAPI, moderationAPI } from "../../api/client";
@@ -61,6 +62,15 @@ export function AdminDashboard() {
   const [categories, setCategories] = useState([]);
   const [categoriesLoading, setCategoriesLoading] = useState(false);
   const [categoryDeleteLoadingId, setCategoryDeleteLoadingId] = useState(null);
+  const [platformFeeDeliveries, setPlatformFeeDeliveries] = useState([]);
+  const [platformFeeLoading, setPlatformFeeLoading] = useState(false);
+  const [platformFeeActionId, setPlatformFeeActionId] = useState(null);
+  const [platformFeeConfig, setPlatformFeeConfig] = useState({
+    exact_fee_amount: 500,
+  });
+  const [platformFeeConfigLoading, setPlatformFeeConfigLoading] =
+    useState(false);
+  const [platformFeeConfigSaving, setPlatformFeeConfigSaving] = useState(false);
 
   useEffect(() => {
     fetchDashboardData();
@@ -133,10 +143,138 @@ export function AdminDashboard() {
       }
 
       await fetchCategories();
+      await fetchPlatformFeeDeliveries();
+      await fetchPlatformFeeConfig();
     } catch (error) {
       console.error("Error fetching dashboard:", error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchPlatformFeeConfig = async () => {
+    setPlatformFeeConfigLoading(true);
+    try {
+      const token = localStorage.getItem("authToken");
+      const response = await fetch(`${API_URL}/platform-fee/config`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      const data = await response.json();
+      if (response.ok && data.success && data.config) {
+        setPlatformFeeConfig({
+          exact_fee_amount: Number(data.config.exact_fee_amount || 500),
+        });
+      }
+    } catch (error) {
+      console.error("Error fetching platform fee config:", error);
+    } finally {
+      setPlatformFeeConfigLoading(false);
+    }
+  };
+
+  const handlePlatformFeeConfigSave = async () => {
+    if (!isSuperAdmin) {
+      alert("Only super admin can update platform fee settings.");
+      return;
+    }
+
+    const exactFeeAmount = Number(platformFeeConfig.exact_fee_amount);
+
+    if (!Number.isFinite(exactFeeAmount) || exactFeeAmount < 1) {
+      alert("Exact platform fee amount must be at least ETB 1.");
+      return;
+    }
+
+    setPlatformFeeConfigSaving(true);
+    try {
+      const token = localStorage.getItem("authToken");
+      const response = await fetch(`${API_URL}/platform-fee/admin/config`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          exact_fee_amount: exactFeeAmount,
+        }),
+      });
+
+      const data = await response.json();
+      if (!response.ok || !data.success) {
+        throw new Error(data.message || "Failed to update platform fee");
+      }
+
+      if (data.config) {
+        setPlatformFeeConfig({
+          exact_fee_amount: Number(
+            data.config.exact_fee_amount || exactFeeAmount,
+          ),
+        });
+      }
+
+      alert("Platform fee settings updated successfully.");
+    } catch (error) {
+      alert(error.message || "Failed to update platform fee settings");
+    } finally {
+      setPlatformFeeConfigSaving(false);
+    }
+  };
+
+  const fetchPlatformFeeDeliveries = async () => {
+    setPlatformFeeLoading(true);
+    try {
+      const token = localStorage.getItem("authToken");
+      const response = await fetch(`${API_URL}/platform-fee/admin/deliveries`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      const data = await response.json();
+      if (response.ok && data.success) {
+        setPlatformFeeDeliveries(data.payments || []);
+      }
+    } catch (error) {
+      console.error("Error fetching platform fee deliveries:", error);
+    } finally {
+      setPlatformFeeLoading(false);
+    }
+  };
+
+  const handleConfirmPlatformFeeDelivery = async (paymentId) => {
+    if (!paymentId) {
+      return;
+    }
+
+    if (
+      !confirm("Confirm this platform fee delivery and notify the organizer?")
+    ) {
+      return;
+    }
+
+    setPlatformFeeActionId(paymentId);
+    try {
+      const token = localStorage.getItem("authToken");
+      const response = await fetch(
+        `${API_URL}/platform-fee/admin/deliveries/${paymentId}/confirm`,
+        {
+          method: "POST",
+          headers: { Authorization: `Bearer ${token}` },
+        },
+      );
+
+      const data = await response.json();
+      if (!response.ok || !data.success) {
+        throw new Error(data.message || "Failed to confirm payment delivery");
+      }
+
+      setPlatformFeeDeliveries((prev) =>
+        prev.filter((payment) => payment.id !== paymentId),
+      );
+      alert("Organizer notified successfully.");
+    } catch (error) {
+      alert(error.message || "Failed to notify organizer");
+    } finally {
+      setPlatformFeeActionId(null);
     }
   };
 
@@ -359,7 +497,7 @@ export function AdminDashboard() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-<div className="max-w-7xl mx-auto px-4 py-8">
+      <div className="max-w-7xl mx-auto px-4 py-8">
         {/* Header */}
         <div className="flex justify-between items-center mb-8">
           <div>
@@ -387,7 +525,7 @@ export function AdminDashboard() {
         </div>
 
         {/* Stats Cards */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 mb-8">
           <div className="bg-white rounded-2xl p-5 shadow-sm border-l-4 border-green-500">
             <Users className="size-8 text-green-500 mb-2" />
             <p className="text-sm text-gray-600">Total Users</p>
@@ -484,6 +622,112 @@ export function AdminDashboard() {
               </div>
             )}
           </div>
+        </div>
+
+        <div className="bg-white rounded-2xl shadow-sm mb-8 overflow-hidden">
+          <div className="px-6 py-4 border-b">
+            <h2 className="text-xl font-bold text-gray-900">
+              Platform Fee Settings
+            </h2>
+            <p className="text-sm text-gray-500 mt-1">
+              Set the exact organizer system fee amount to be paid.
+            </p>
+          </div>
+          <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-4 items-end">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Exact Platform Fee (ETB)
+              </label>
+              <input
+                type="number"
+                step="0.01"
+                min="1"
+                value={platformFeeConfig.exact_fee_amount}
+                onChange={(e) =>
+                  setPlatformFeeConfig((prev) => ({
+                    ...prev,
+                    exact_fee_amount: e.target.value,
+                  }))
+                }
+                disabled={!isSuperAdmin || platformFeeConfigLoading}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+              />
+            </div>
+
+            <button
+              type="button"
+              onClick={handlePlatformFeeConfigSave}
+              disabled={
+                !isSuperAdmin ||
+                platformFeeConfigSaving ||
+                platformFeeConfigLoading
+              }
+              className="px-4 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 disabled:opacity-50"
+            >
+              {platformFeeConfigSaving ? "Saving..." : "Save Settings"}
+            </button>
+          </div>
+        </div>
+
+        <div className="bg-white rounded-2xl shadow-sm mb-8 overflow-hidden">
+          <div className="px-6 py-4 border-b flex items-center justify-between">
+            <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2">
+              <DollarSign className="size-5 text-emerald-600" /> Platform Fee
+              Delivery Confirmations
+            </h2>
+            <span className="text-xs px-2 py-1 rounded-full bg-emerald-100 text-emerald-700">
+              {platformFeeDeliveries.length}
+            </span>
+          </div>
+
+          {platformFeeLoading ? (
+            <div className="px-6 py-8 text-sm text-gray-500">
+              Loading platform fee payments...
+            </div>
+          ) : platformFeeDeliveries.length === 0 ? (
+            <div className="px-6 py-8 text-sm text-gray-500">
+              No completed platform fee payments waiting for admin confirmation.
+            </div>
+          ) : (
+            <div className="divide-y divide-gray-200">
+              {platformFeeDeliveries.slice(0, 8).map((payment) => (
+                <div
+                  key={payment.id}
+                  className="px-6 py-4 flex flex-col md:flex-row gap-3 md:items-center md:justify-between"
+                >
+                  <div>
+                    <p className="font-semibold text-gray-900">
+                      {payment.user?.organizer_profile?.organization_name ||
+                        payment.user?.full_name ||
+                        "Organizer"}
+                    </p>
+                    <p className="text-sm text-gray-600">
+                      ETB {Number(payment.amount || 0).toLocaleString()} paid
+                      via {payment.payment_method || "-"}
+                    </p>
+                    <p className="text-xs text-gray-400">
+                      Completed:{" "}
+                      {payment.completed_at
+                        ? new Date(payment.completed_at).toLocaleString()
+                        : "-"}
+                    </p>
+                  </div>
+
+                  <button
+                    type="button"
+                    disabled={platformFeeActionId === payment.id}
+                    onClick={() => handleConfirmPlatformFeeDelivery(payment.id)}
+                    className="px-4 py-2 bg-emerald-600 text-white rounded-lg text-sm font-medium hover:bg-emerald-700 disabled:opacity-50 inline-flex items-center gap-2"
+                  >
+                    <Send className="size-4" />
+                    {platformFeeActionId === payment.id
+                      ? "Sending..."
+                      : "Confirm & Notify"}
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
 
         {/* Quick Actions */}

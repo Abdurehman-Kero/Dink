@@ -3,6 +3,7 @@ import {
   Bell,
   BellRing,
   CheckCircle,
+  Clock,
   Calendar,
   Ticket,
   Users,
@@ -197,6 +198,8 @@ export function NotificationBell() {
         return <Users className="size-4 text-purple-500" />;
       case "platform_fee_delivery":
         return <CheckCircle className="size-4 text-emerald-500" />;
+      case "platform_fee_confirmation_required":
+        return <Clock className="size-4 text-amber-500" />;
       case "ban":
         return <ShieldAlert className="size-4 text-red-500" />;
       case "report_submitted":
@@ -236,7 +239,7 @@ export function NotificationBell() {
             className="fixed inset-0 z-40"
             onClick={() => setShowDropdown(false)}
           />
-          <div className="absolute right-0 mt-2 w-[calc(100vw-2rem)] max-w-sm bg-white rounded-2xl shadow-xl border z-50 max-h-96 overflow-y-auto">
+          <div className="fixed left-4 right-4 top-16 w-auto max-w-[calc(100vw-2rem)] bg-white rounded-2xl shadow-xl border z-50 max-h-[70vh] overflow-y-auto sm:absolute sm:left-auto sm:right-0 sm:top-auto sm:mt-2 sm:w-[calc(100vw-2rem)] sm:max-w-sm sm:max-h-96">
             <div className="p-3 border-b sticky top-0 bg-white">
               <h3 className="font-semibold text-gray-900">Notifications</h3>
             </div>

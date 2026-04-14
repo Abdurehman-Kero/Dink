@@ -195,6 +195,8 @@ export function NotificationBell() {
         return <Calendar className="size-4 text-blue-500" />;
       case "approval":
         return <Users className="size-4 text-purple-500" />;
+      case "platform_fee_delivery":
+        return <CheckCircle className="size-4 text-emerald-500" />;
       case "ban":
         return <ShieldAlert className="size-4 text-red-500" />;
       case "report_submitted":
@@ -234,7 +236,7 @@ export function NotificationBell() {
             className="fixed inset-0 z-40"
             onClick={() => setShowDropdown(false)}
           />
-          <div className="absolute right-0 mt-2 w-80 bg-white rounded-2xl shadow-xl border z-50 max-h-96 overflow-y-auto">
+          <div className="absolute right-0 mt-2 w-[calc(100vw-2rem)] max-w-sm bg-white rounded-2xl shadow-xl border z-50 max-h-96 overflow-y-auto">
             <div className="p-3 border-b sticky top-0 bg-white">
               <h3 className="font-semibold text-gray-900">Notifications</h3>
             </div>

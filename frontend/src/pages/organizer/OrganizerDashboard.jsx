@@ -1,14 +1,31 @@
-import { useEffect, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
-import { 
-  Calendar, Users, DollarSign, TrendingUp, PlusCircle, Ticket, 
-  Star, Eye, RefreshCw, UserCog, Wallet, BarChart3, 
-  Settings, LogOut, Clock, MapPin, Award, Activity, FileWarning, Scale
-} from 'lucide-react';
-import { moderationAPI } from '../../api/client';
-import { useAuth } from '../../contexts/AuthContext';
+import { useEffect, useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
+import {
+  Calendar,
+  Users,
+  DollarSign,
+  TrendingUp,
+  PlusCircle,
+  Ticket,
+  Star,
+  Eye,
+  RefreshCw,
+  UserCog,
+  Wallet,
+  BarChart3,
+  Settings,
+  LogOut,
+  Clock,
+  MapPin,
+  Award,
+  Activity,
+  FileWarning,
+  Scale,
+} from "lucide-react";
+import { moderationAPI } from "../../api/client";
+import { useAuth } from "../../contexts/AuthContext";
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000/api";
 
 export function OrganizerDashboard() {
   const { user, logout } = useAuth();
@@ -23,7 +40,7 @@ export function OrganizerDashboard() {
     total_revenue: 0,
     pending_approvals: 0,
     completed_events: 0,
-    average_tickets_per_event: 0
+    average_tickets_per_event: 0,
   });
   const [reports, setReports] = useState([]);
   const [appeals, setAppeals] = useState([]);
@@ -31,51 +48,53 @@ export function OrganizerDashboard() {
   const [selectedAppeal, setSelectedAppeal] = useState(null);
   const [showReportModal, setShowReportModal] = useState(false);
   const [showAppealModal, setShowAppealModal] = useState(false);
-  const [moderationNote, setModerationNote] = useState('');
+  const [moderationNote, setModerationNote] = useState("");
   const [moderationActionLoading, setModerationActionLoading] = useState(false);
 
   const fetchEvents = async () => {
     try {
-      const token = localStorage.getItem('authToken');
+      const token = localStorage.getItem("authToken");
       if (!token) {
-        console.log('No auth token found');
+        console.log("No auth token found");
         return [];
       }
-      
+
       const response = await fetch(`${API_URL}/events/organizer/my-events`, {
-        headers: { 'Authorization': `Bearer ${token}` }
+        headers: { Authorization: `Bearer ${token}` },
       });
       const data = await response.json();
-      
+
       if (data.success) {
         const myEvents = data.events || [];
-        const completedEvents = myEvents.filter(e => new Date(e.end_datetime) < new Date());
-        
+        const completedEvents = myEvents.filter(
+          (e) => new Date(e.end_datetime) < new Date(),
+        );
+
         setEvents(myEvents);
-        setStats(prev => ({
+        setStats((prev) => ({
           ...prev,
           total_events: myEvents.length,
-          completed_events: completedEvents.length
+          completed_events: completedEvents.length,
         }));
         return myEvents;
       }
       return [];
     } catch (error) {
-      console.error('Error fetching events:', error);
+      console.error("Error fetching events:", error);
       return [];
     }
   };
 
   const fetchStats = async (myEvents = []) => {
     try {
-      const token = localStorage.getItem('authToken');
+      const token = localStorage.getItem("authToken");
       if (!token) return;
-      
+
       // Calculate stats from events if we have them
       if (myEvents.length > 0) {
         let totalTickets = 0;
         let totalRev = 0;
-        
+
         for (const event of myEvents) {
           if (event.ticket_types && event.ticket_types.length > 0) {
             for (const ticket of event.ticket_types) {
@@ -85,44 +104,54 @@ export function OrganizerDashboard() {
             }
           }
         }
-        
-        setStats(prev => ({
+
+        setStats((prev) => ({
           ...prev,
           total_tickets_sold: totalTickets,
           total_revenue: totalRev,
-          average_tickets_per_event: myEvents.length > 0 ? Math.round(totalTickets / myEvents.length) : 0
+          average_tickets_per_event:
+            myEvents.length > 0
+              ? Math.round(totalTickets / myEvents.length)
+              : 0,
         }));
       } else {
         // Try to fetch from API as fallback
         const response = await fetch(`${API_URL}/analytics/organizer/stats`, {
-          headers: { 'Authorization': `Bearer ${token}` }
+          headers: { Authorization: `Bearer ${token}` },
         });
         const data = await response.json();
         if (data.success) {
-          setStats(prev => ({
+          setStats((prev) => ({
             ...prev,
             total_tickets_sold: data.stats.total_tickets_sold,
             total_revenue: data.stats.total_revenue,
-            average_tickets_per_event: data.stats.average_tickets_per_event
+            average_tickets_per_event: data.stats.average_tickets_per_event,
           }));
         }
       }
     } catch (error) {
-      console.error('Error fetching stats:', error);
+      console.error("Error fetching stats:", error);
     }
   };
 
   const fetchModerationData = async () => {
     try {
       const [reportsResponse, appealsResponse] = await Promise.all([
-        moderationAPI.getOrganizerReports('pending'),
-        moderationAPI.getOrganizerAppeals('pending')
+        moderationAPI.getOrganizerReports("pending"),
+        moderationAPI.getOrganizerAppeals("pending"),
       ]);
 
-      setReports(reportsResponse.reports || []);
-      setAppeals(appealsResponse.appeals || []);
+      const pendingReports = reportsResponse.reports || [];
+      const pendingAppeals = appealsResponse.appeals || [];
+
+      setReports(pendingReports);
+      setAppeals(pendingAppeals);
+      setStats((prev) => ({
+        ...prev,
+        pending_approvals: pendingReports.length + pendingAppeals.length,
+      }));
     } catch (moderationError) {
-      console.error('Error fetching moderation data:', moderationError);
+      console.error("Error fetching moderation data:", moderationError);
     }
   };
 
@@ -134,8 +163,8 @@ export function OrganizerDashboard() {
       await fetchStats(myEvents);
       await fetchModerationData();
     } catch (err) {
-      console.error('Error fetching data:', err);
-      setError('Failed to load dashboard data. Please try again.');
+      console.error("Error fetching data:", err);
+      setError("Failed to load dashboard data. Please try again.");
     } finally {
       setRefreshing(false);
       setLoading(false);
@@ -143,34 +172,38 @@ export function OrganizerDashboard() {
   };
 
   useEffect(() => {
-    // Set a timeout to prevent infinite loading
+    // Set a timeout to prevent infinite loading only if loading is still active.
     const timeoutId = setTimeout(() => {
-      if (loading) {
-        console.log('Loading timeout - forcing completion');
-        setLoading(false);
-        setError('Loading took too long. Please refresh the page.');
-      }
+      setLoading((isStillLoading) => {
+        if (isStillLoading) {
+          console.log("Loading timeout - forcing completion");
+          setError("Loading took too long. Please refresh the page.");
+          return false;
+        }
+
+        return isStillLoading;
+      });
     }, 10000); // 10 second timeout
-    
+
     fetchAllData();
-    
+
     return () => clearTimeout(timeoutId);
   }, []);
 
   const handleLogout = () => {
     logout();
-    navigate('/login');
+    navigate("/login");
   };
 
   const openReportModal = (report) => {
     setSelectedReport(report);
-    setModerationNote('');
+    setModerationNote("");
     setShowReportModal(true);
   };
 
   const openAppealModal = (appeal) => {
     setSelectedAppeal(appeal);
-    setModerationNote('');
+    setModerationNote("");
     setShowAppealModal(true);
   };
 
@@ -187,13 +220,13 @@ export function OrganizerDashboard() {
     try {
       await moderationAPI.decideOrganizerReport(selectedReport.id, {
         action,
-        note: moderationNote.trim() || undefined
+        note: moderationNote.trim() || undefined,
       });
 
       alert(`Report ${action}ed successfully.`);
       setShowReportModal(false);
       setSelectedReport(null);
-      setModerationNote('');
+      setModerationNote("");
       fetchAllData();
     } catch (decisionError) {
       alert(decisionError.message || `Failed to ${action} report`);
@@ -215,13 +248,13 @@ export function OrganizerDashboard() {
     try {
       await moderationAPI.decideOrganizerAppeal(selectedAppeal.id, {
         action,
-        note: moderationNote.trim() || undefined
+        note: moderationNote.trim() || undefined,
       });
 
       alert(`Appeal ${action}d successfully.`);
       setShowAppealModal(false);
       setSelectedAppeal(null);
-      setModerationNote('');
+      setModerationNote("");
       fetchAllData();
     } catch (decisionError) {
       alert(decisionError.message || `Failed to ${action} appeal`);
@@ -234,7 +267,7 @@ export function OrganizerDashboard() {
   const getEventStats = (event) => {
     let ticketsSold = 0;
     let revenue = 0;
-    
+
     if (event.ticket_types && event.ticket_types.length > 0) {
       for (const ticket of event.ticket_types) {
         const sold = ticket.capacity - ticket.remaining_quantity;
@@ -242,7 +275,7 @@ export function OrganizerDashboard() {
         revenue += sold * ticket.price;
       }
     }
-    
+
     return { ticketsSold, revenue };
   };
 
@@ -463,10 +496,10 @@ export function OrganizerDashboard() {
                         </div>
                         <div className="flex flex-wrap gap-4 mt-2 text-xs">
                           <span className="text-blue-600">
-                            ��� {ticketsSold} tickets sold
+                            Sold: {ticketsSold} tickets
                           </span>
                           <span className="text-green-600">
-                            ��� ETB {revenue.toLocaleString()} revenue
+                            Revenue: ETB {revenue.toLocaleString()}
                           </span>
                         </div>
                       </div>
@@ -496,19 +529,30 @@ export function OrganizerDashboard() {
           <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
             <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
               <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2">
-                <FileWarning className="size-5 text-orange-500" /> Pending User Reports
+                <FileWarning className="size-5 text-orange-500" /> Pending User
+                Reports
               </h2>
-              <span className="text-xs px-2 py-1 rounded-full bg-orange-100 text-orange-700">{reports.length}</span>
+              <span className="text-xs px-2 py-1 rounded-full bg-orange-100 text-orange-700">
+                {reports.length}
+              </span>
             </div>
             <div className="divide-y divide-gray-200">
               {reports.length === 0 ? (
-                <p className="px-6 py-8 text-sm text-gray-500">No pending reports.</p>
+                <p className="px-6 py-8 text-sm text-gray-500">
+                  No pending reports.
+                </p>
               ) : (
                 reports.slice(0, 5).map((report) => (
                   <div key={report.id} className="px-6 py-4">
-                    <p className="text-sm font-semibold text-gray-900">{report.subject_user?.full_name || 'Reported user'}</p>
-                    <p className="text-xs text-gray-500 mt-1">Reason: {report.reason}</p>
-                    <p className="text-xs text-gray-400 mt-1">Event: {report.event?.title || 'N/A'}</p>
+                    <p className="text-sm font-semibold text-gray-900">
+                      {report.subject_user?.full_name || "Reported user"}
+                    </p>
+                    <p className="text-xs text-gray-500 mt-1">
+                      Reason: {report.reason}
+                    </p>
+                    <p className="text-xs text-gray-400 mt-1">
+                      Event: {report.event?.title || "N/A"}
+                    </p>
                     <button
                       type="button"
                       onClick={() => openReportModal(report)}
@@ -527,16 +571,24 @@ export function OrganizerDashboard() {
               <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2">
                 <Scale className="size-5 text-amber-600" /> Pending Appeals
               </h2>
-              <span className="text-xs px-2 py-1 rounded-full bg-amber-100 text-amber-700">{appeals.length}</span>
+              <span className="text-xs px-2 py-1 rounded-full bg-amber-100 text-amber-700">
+                {appeals.length}
+              </span>
             </div>
             <div className="divide-y divide-gray-200">
               {appeals.length === 0 ? (
-                <p className="px-6 py-8 text-sm text-gray-500">No pending appeals.</p>
+                <p className="px-6 py-8 text-sm text-gray-500">
+                  No pending appeals.
+                </p>
               ) : (
                 appeals.slice(0, 5).map((appeal) => (
                   <div key={appeal.id} className="px-6 py-4">
-                    <p className="text-sm font-semibold text-gray-900">{appeal.appellant?.full_name || 'User'}</p>
-                    <p className="text-xs text-gray-500 mt-1 line-clamp-2">{appeal.message}</p>
+                    <p className="text-sm font-semibold text-gray-900">
+                      {appeal.appellant?.full_name || "User"}
+                    </p>
+                    <p className="text-xs text-gray-500 mt-1 line-clamp-2">
+                      {appeal.message}
+                    </p>
                     <button
                       type="button"
                       onClick={() => openAppealModal(appeal)}
@@ -565,19 +617,45 @@ export function OrganizerDashboard() {
       {showReportModal && selectedReport && (
         <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl w-full max-w-lg p-6">
-            <h3 className="text-xl font-bold text-gray-900 mb-2">Report Details</h3>
-            <p className="text-sm text-gray-500 mb-4">Review the report and choose an action.</p>
+            <h3 className="text-xl font-bold text-gray-900 mb-2">
+              Report Details
+            </h3>
+            <p className="text-sm text-gray-500 mb-4">
+              Review the report and choose an action.
+            </p>
 
             <div className="space-y-2 text-sm mb-4">
-              <p><span className="font-semibold">Reported user:</span> {selectedReport.subject_user?.full_name || 'N/A'}</p>
-              <p><span className="font-semibold">Reported by:</span> {selectedReport.reporter?.full_name || 'N/A'}</p>
-              <p><span className="font-semibold">Event:</span> {selectedReport.event?.title || 'N/A'}</p>
-              <p><span className="font-semibold">Reason:</span> {selectedReport.reason}</p>
-              <p><span className="font-semibold">Comment:</span> {selectedReport.review?.review_text || 'N/A'}</p>
-              {selectedReport.details && <p><span className="font-semibold">Details:</span> {selectedReport.details}</p>}
+              <p>
+                <span className="font-semibold">Reported user:</span>{" "}
+                {selectedReport.subject_user?.full_name || "N/A"}
+              </p>
+              <p>
+                <span className="font-semibold">Reported by:</span>{" "}
+                {selectedReport.reporter?.full_name || "N/A"}
+              </p>
+              <p>
+                <span className="font-semibold">Event:</span>{" "}
+                {selectedReport.event?.title || "N/A"}
+              </p>
+              <p>
+                <span className="font-semibold">Reason:</span>{" "}
+                {selectedReport.reason}
+              </p>
+              <p>
+                <span className="font-semibold">Comment:</span>{" "}
+                {selectedReport.review?.review_text || "N/A"}
+              </p>
+              {selectedReport.details && (
+                <p>
+                  <span className="font-semibold">Details:</span>{" "}
+                  {selectedReport.details}
+                </p>
+              )}
             </div>
 
-            <label className="block text-sm font-medium text-gray-700 mb-1">Decision Note (optional)</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Decision Note (optional)
+            </label>
             <textarea
               rows={3}
               value={moderationNote}
@@ -596,7 +674,7 @@ export function OrganizerDashboard() {
               </button>
               <button
                 type="button"
-                onClick={() => handleReportDecision('reject')}
+                onClick={() => handleReportDecision("reject")}
                 disabled={moderationActionLoading}
                 className="flex-1 px-4 py-2 border border-gray-300 rounded-xl text-gray-700 disabled:opacity-50"
               >
@@ -604,7 +682,7 @@ export function OrganizerDashboard() {
               </button>
               <button
                 type="button"
-                onClick={() => handleReportDecision('ban')}
+                onClick={() => handleReportDecision("ban")}
                 disabled={moderationActionLoading}
                 className="flex-1 px-4 py-2 bg-red-600 text-white rounded-xl disabled:opacity-50"
               >
@@ -618,17 +696,35 @@ export function OrganizerDashboard() {
       {showAppealModal && selectedAppeal && (
         <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl w-full max-w-lg p-6">
-            <h3 className="text-xl font-bold text-gray-900 mb-2">Appeal Details</h3>
-            <p className="text-sm text-gray-500 mb-4">Approve to lift the ban, or reject to keep it active.</p>
+            <h3 className="text-xl font-bold text-gray-900 mb-2">
+              Appeal Details
+            </h3>
+            <p className="text-sm text-gray-500 mb-4">
+              Approve to lift the ban, or reject to keep it active.
+            </p>
 
             <div className="space-y-2 text-sm mb-4">
-              <p><span className="font-semibold">Appellant:</span> {selectedAppeal.appellant?.full_name || 'N/A'}</p>
-              <p><span className="font-semibold">Current ban status:</span> {selectedAppeal.ban?.status || 'N/A'}</p>
-              <p><span className="font-semibold">Ban reason:</span> {selectedAppeal.ban?.reason || 'N/A'}</p>
-              <p><span className="font-semibold">Appeal:</span> {selectedAppeal.message}</p>
+              <p>
+                <span className="font-semibold">Appellant:</span>{" "}
+                {selectedAppeal.appellant?.full_name || "N/A"}
+              </p>
+              <p>
+                <span className="font-semibold">Current ban status:</span>{" "}
+                {selectedAppeal.ban?.status || "N/A"}
+              </p>
+              <p>
+                <span className="font-semibold">Ban reason:</span>{" "}
+                {selectedAppeal.ban?.reason || "N/A"}
+              </p>
+              <p>
+                <span className="font-semibold">Appeal:</span>{" "}
+                {selectedAppeal.message}
+              </p>
             </div>
 
-            <label className="block text-sm font-medium text-gray-700 mb-1">Decision Note (optional)</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Decision Note (optional)
+            </label>
             <textarea
               rows={3}
               value={moderationNote}
@@ -647,7 +743,7 @@ export function OrganizerDashboard() {
               </button>
               <button
                 type="button"
-                onClick={() => handleAppealDecision('reject')}
+                onClick={() => handleAppealDecision("reject")}
                 disabled={moderationActionLoading}
                 className="flex-1 px-4 py-2 border border-gray-300 rounded-xl text-gray-700 disabled:opacity-50"
               >
@@ -655,7 +751,7 @@ export function OrganizerDashboard() {
               </button>
               <button
                 type="button"
-                onClick={() => handleAppealDecision('approve')}
+                onClick={() => handleAppealDecision("approve")}
                 disabled={moderationActionLoading}
                 className="flex-1 px-4 py-2 bg-green-600 text-white rounded-xl disabled:opacity-50"
               >

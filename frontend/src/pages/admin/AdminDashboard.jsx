@@ -21,6 +21,7 @@ import {
   FileWarning,
   Scale,
   Plus,
+  Trash2,
 } from "lucide-react";
 import { useAuth } from "../../contexts/AuthContext";
 import { adminCategoryAPI, moderationAPI } from "../../api/client";
@@ -30,6 +31,7 @@ const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000/api";
 
 export function AdminDashboard() {
   const { user, logout } = useAuth();
+  const isSuperAdmin = user?.email === "nexussphere0974@gmail.com";
   const [stats, setStats] = useState({
     total_users: 0,
     total_organizers: 0,
@@ -56,44 +58,62 @@ export function AdminDashboard() {
   const [categoryForm, setCategoryForm] = useState({ name: "", slug: "" });
   const [categoryCreateLoading, setCategoryCreateLoading] = useState(false);
   const [categoryError, setCategoryError] = useState("");
+  const [categories, setCategories] = useState([]);
+  const [categoriesLoading, setCategoriesLoading] = useState(false);
+  const [categoryDeleteLoadingId, setCategoryDeleteLoadingId] = useState(null);
 
   useEffect(() => {
     fetchDashboardData();
   }, []);
 
+  const fetchCategories = async () => {
+    setCategoriesLoading(true);
+    try {
+      const data = await adminCategoryAPI.getAll();
+      setCategories(data.categories || []);
+    } catch (error) {
+      console.error("Error fetching categories:", error);
+    } finally {
+      setCategoriesLoading(false);
+    }
+  };
+
   const fetchDashboardData = async () => {
     setLoading(true);
     try {
-      // Fetch pending organizers from API
       const token = localStorage.getItem("authToken");
-      const pendingResponse = await fetch(
-        `${API_URL}/admin/pending-organizers`,
-        {
+      const [statsResponse, pendingResponse] = await Promise.all([
+        fetch(`${API_URL}/admin/stats`, {
           headers: { Authorization: `Bearer ${token}` },
-        },
-      );
+        }),
+        fetch(`${API_URL}/admin/pending-organizers`, {
+          headers: { Authorization: `Bearer ${token}` },
+        }),
+      ]);
+
+      const statsData = await statsResponse.json();
       const pendingData = await pendingResponse.json();
 
-      if (pendingData.success) {
-        setPendingOrganizers(pendingData.pending || []);
+      if (statsData.success) {
         setStats((prev) => ({
           ...prev,
-          pending_approvals: pendingData.pending?.length || 0,
+          total_users: statsData.stats.total_users || 0,
+          total_organizers: statsData.stats.total_organizers || 0,
+          total_attendees: statsData.stats.total_attendees || 0,
+          total_events: statsData.stats.total_events || 0,
+          live_events: statsData.stats.live_events || 0,
+          total_revenue: statsData.stats.total_revenue || 0,
+          total_tickets_sold: statsData.stats.total_tickets_sold || 0,
+          pending_approvals: statsData.stats.pending_approvals || 0,
         }));
       }
 
-      // Get total users count
-      const usersResponse = await fetch(`${API_URL}/admin/users`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      const usersData = await usersResponse.json();
-
-      if (usersData.success) {
+      if (pendingData.success) {
+        const pendingList = pendingData.pending || [];
+        setPendingOrganizers(pendingList);
         setStats((prev) => ({
           ...prev,
-          total_users: usersData.total || 0,
-          total_organizers: usersData.organizers || 0,
-          total_attendees: usersData.attendees || 0,
+          pending_approvals: pendingList.length,
         }));
       }
 
@@ -111,6 +131,8 @@ export function AdminDashboard() {
           moderationError,
         );
       }
+
+      await fetchCategories();
     } catch (error) {
       console.error("Error fetching dashboard:", error);
     } finally {
@@ -273,6 +295,12 @@ export function AdminDashboard() {
 
   const handleCreateCategory = async (e) => {
     e.preventDefault();
+
+    if (!isSuperAdmin) {
+      setCategoryError("Only super admin can create categories.");
+      return;
+    }
+
     setCategoryError("");
 
     const name = categoryForm.name.trim();
@@ -288,10 +316,36 @@ export function AdminDashboard() {
       await adminCategoryAPI.create({ name, slug });
       setShowCreateCategoryModal(false);
       alert("Category created successfully.");
+      await fetchCategories();
     } catch (error) {
       setCategoryError(error.message || "Failed to create category");
     } finally {
       setCategoryCreateLoading(false);
+    }
+  };
+
+  const handleDeleteCategory = async (category) => {
+    if (!isSuperAdmin) {
+      alert("Only super admin can delete categories.");
+      return;
+    }
+
+    const shouldDelete = confirm(
+      `Delete category \"${category.name}\"? This cannot be undone.`,
+    );
+    if (!shouldDelete) {
+      return;
+    }
+
+    setCategoryDeleteLoadingId(category.id);
+    try {
+      await adminCategoryAPI.delete(category.id);
+      setCategories((prev) => prev.filter((item) => item.id !== category.id));
+      alert("Category deleted successfully.");
+    } catch (error) {
+      alert(error.message || "Failed to delete category");
+    } finally {
+      setCategoryDeleteLoadingId(null);
     }
   };
 
@@ -553,15 +607,67 @@ export function AdminDashboard() {
             <button
               type="button"
               onClick={openCreateCategoryModal}
+              disabled={!isSuperAdmin}
               className="flex items-center justify-between p-3 bg-gray-50 rounded-xl hover:bg-gray-100"
             >
               <span className="flex items-center gap-2">
                 <Plus className="size-4" />
-                Create Category
+                {isSuperAdmin
+                  ? "Create Category"
+                  : "Create Category (Super Admin)"}
               </span>
               <ChevronRight className="size-4" />
             </button>
           </div>
+        </div>
+
+        <div className="bg-white rounded-2xl shadow-sm mt-8 overflow-hidden">
+          <div className="px-6 py-4 border-b flex items-center justify-between">
+            <h2 className="text-xl font-bold">Category Management</h2>
+            <span className="text-xs text-gray-500">
+              {categories.length} categories
+            </span>
+          </div>
+          {categoriesLoading ? (
+            <div className="px-6 py-8 text-sm text-gray-500">
+              Loading categories...
+            </div>
+          ) : categories.length === 0 ? (
+            <div className="px-6 py-8 text-sm text-gray-500">
+              No categories found.
+            </div>
+          ) : (
+            <div className="divide-y divide-gray-200">
+              {categories.map((category) => (
+                <div
+                  key={category.id}
+                  className="px-6 py-4 flex items-center justify-between gap-4"
+                >
+                  <div>
+                    <p className="font-semibold text-gray-900">
+                      {category.name}
+                    </p>
+                    <p className="text-xs text-gray-500">
+                      Slug: {category.slug} • Events: {category.event_count}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    disabled={
+                      !isSuperAdmin || categoryDeleteLoadingId === category.id
+                    }
+                    onClick={() => handleDeleteCategory(category)}
+                    className="px-3 py-1.5 border border-red-200 text-red-600 rounded-lg text-sm hover:bg-red-50 disabled:opacity-50 inline-flex items-center gap-1"
+                  >
+                    <Trash2 className="size-4" />
+                    {categoryDeleteLoadingId === category.id
+                      ? "Deleting..."
+                      : "Delete"}
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </div>
 
@@ -802,6 +908,12 @@ export function AdminDashboard() {
               Add a new event category for organizers and attendees.
             </p>
 
+            {!isSuperAdmin && (
+              <p className="text-sm text-red-600 mb-4">
+                Only super admin can create categories.
+              </p>
+            )}
+
             <form onSubmit={handleCreateCategory} className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -852,7 +964,7 @@ export function AdminDashboard() {
                 <button
                   type="submit"
                   className="flex-1 px-4 py-2 bg-green-600 text-white rounded-xl disabled:opacity-50"
-                  disabled={categoryCreateLoading}
+                  disabled={categoryCreateLoading || !isSuperAdmin}
                 >
                   {categoryCreateLoading ? "Creating..." : "Create"}
                 </button>

@@ -1,11 +1,11 @@
-const { prisma } = require('../config/database');
-const { generateId } = require('../utils/id');
+const { prisma } = require("../config/database");
+const { generateId } = require("../utils/id");
 
 const MAX_BANNER_URL_LENGTH = 2048;
 const DATA_IMAGE_URL_REGEX = /^data:image\/[a-zA-Z0-9.+-]+;base64,/i;
 
 const normalizeBannerUrl = (bannerUrl) => {
-  if (!bannerUrl || typeof bannerUrl !== 'string') {
+  if (!bannerUrl || typeof bannerUrl !== "string") {
     return null;
   }
 
@@ -13,9 +13,8 @@ const normalizeBannerUrl = (bannerUrl) => {
   return trimmed.length > 0 ? trimmed : null;
 };
 
-const isBase64ImageDataUrl = (value) => (
-  typeof value === 'string' && DATA_IMAGE_URL_REGEX.test(value)
-);
+const isBase64ImageDataUrl = (value) =>
+  typeof value === "string" && DATA_IMAGE_URL_REGEX.test(value);
 
 const validateBannerUrl = (bannerUrl) => {
   if (!bannerUrl) {
@@ -23,7 +22,7 @@ const validateBannerUrl = (bannerUrl) => {
   }
 
   if (isBase64ImageDataUrl(bannerUrl)) {
-    return 'Banner image must be a regular hosted image URL (for example Cloudinary), not a base64 data URL.';
+    return "Banner image must be a regular hosted image URL (for example Cloudinary), not a base64 data URL.";
   }
 
   if (bannerUrl.length > MAX_BANNER_URL_LENGTH) {
@@ -37,7 +36,7 @@ const withCategoryName = (event) => {
   const { category, ...rest } = event;
   return {
     ...rest,
-    category_name: category?.name || null
+    category_name: category?.name || null,
   };
 };
 
@@ -45,19 +44,27 @@ const withCategoryName = (event) => {
 const getEvents = async (req, res) => {
   try {
     const events = await prisma.event.findMany({
-      where: { status: 'published' },
+      where: { status: "published" },
       include: {
         category: {
-          select: { name: true }
-        }
+          select: { name: true },
+        },
+        ticket_types: {
+          where: { is_active: true },
+          select: {
+            price: true,
+            capacity: true,
+            remaining_quantity: true,
+          },
+        },
       },
-      orderBy: { start_datetime: 'asc' }
+      orderBy: { start_datetime: "asc" },
     });
 
     res.json({ success: true, events: events.map(withCategoryName) });
   } catch (error) {
-    console.error('Get events error:', error);
-    res.status(500).json({ message: 'Server error' });
+    console.error("Get events error:", error);
+    res.status(500).json({ message: "Server error" });
   }
 };
 
@@ -70,16 +77,26 @@ const getEventsByOrganizer = async (req, res) => {
       where: { organizer_id: organizerId },
       include: {
         category: {
-          select: { name: true }
-        }
+          select: { name: true },
+        },
+        ticket_types: {
+          where: { is_active: true },
+          select: {
+            id: true,
+            tier_name: true,
+            price: true,
+            capacity: true,
+            remaining_quantity: true,
+          },
+        },
       },
-      orderBy: { created_at: 'desc' }
+      orderBy: { created_at: "desc" },
     });
 
     res.json({ success: true, events: events.map(withCategoryName) });
   } catch (error) {
-    console.error('Get events by organizer error:', error);
-    res.status(500).json({ message: 'Server error', error: error.message });
+    console.error("Get events by organizer error:", error);
+    res.status(500).json({ message: "Server error", error: error.message });
   }
 };
 
@@ -90,79 +107,90 @@ const getEventById = async (req, res) => {
       where: { id: req.params.id },
       include: {
         category: {
-          select: { name: true }
+          select: { name: true },
         },
         ticket_types: {
-          where: { is_active: true }
-        }
-      }
+          where: { is_active: true },
+        },
+      },
     });
 
     if (!event) {
-      return res.status(404).json({ message: 'Event not found' });
+      return res.status(404).json({ message: "Event not found" });
     }
 
     const { ticket_types, ...eventData } = event;
     res.json({
       success: true,
       event: withCategoryName(eventData),
-      ticket_types
+      ticket_types,
     });
   } catch (error) {
-    console.error('Get event by ID error:', error);
-    res.status(500).json({ message: 'Server error' });
+    console.error("Get event by ID error:", error);
+    res.status(500).json({ message: "Server error" });
   }
 };
 
 // Create event
 const createEvent = async (req, res) => {
   try {
-    const { 
-      title, category_id, event_type, description, 
-      start_datetime, end_datetime, city, venue_name, 
-      address_line1, banner_url, ticket_types 
+    const {
+      title,
+      category_id,
+      event_type,
+      description,
+      start_datetime,
+      end_datetime,
+      city,
+      venue_name,
+      address_line1,
+      banner_url,
+      ticket_types,
     } = req.body;
-    
+
     const organizerId = req.user.id;
-    const normalizedCategoryId = typeof category_id === 'string' ? category_id.trim() : '';
+    const normalizedCategoryId =
+      typeof category_id === "string" ? category_id.trim() : "";
 
     if (req.user.role_id === 2) {
       const activePlatformBan = await prisma.ban.findFirst({
         where: {
-          scope: 'platform_organizer',
-          status: 'active',
-          subject_user_id: organizerId
+          scope: "platform_organizer",
+          status: "active",
+          subject_user_id: organizerId,
         },
         select: {
           id: true,
           reason: true,
-          created_at: true
-        }
+          created_at: true,
+        },
       });
 
       if (activePlatformBan) {
         return res.status(403).json({
           success: false,
-          code: 'ORGANIZER_BANNED',
-          message: 'Your organizer account is currently banned and cannot create new events.',
-          ban: activePlatformBan
+          code: "ORGANIZER_BANNED",
+          message:
+            "Your organizer account is currently banned and cannot create new events.",
+          ban: activePlatformBan,
         });
       }
     }
 
     if (!normalizedCategoryId) {
-      return res.status(400).json({ message: 'Category is required' });
+      return res.status(400).json({ message: "Category is required" });
     }
 
     const categoryExists = await prisma.eventCategory.findUnique({
       where: { id: normalizedCategoryId },
-      select: { id: true }
+      select: { id: true },
     });
 
     if (!categoryExists) {
       return res.status(400).json({
-        message: 'Invalid category selected. Please refresh the page and choose a valid category.',
-        field: 'category_id'
+        message:
+          "Invalid category selected. Please refresh the page and choose a valid category.",
+        field: "category_id",
       });
     }
 
@@ -188,8 +216,8 @@ const createEvent = async (req, res) => {
           venue_name,
           address_line1,
           banner_url: normalizedBannerUrl,
-          status: 'published'
-        }
+          status: "published",
+        },
       });
 
       if (ticket_types && ticket_types.length > 0) {
@@ -200,11 +228,13 @@ const createEvent = async (req, res) => {
             event_id: event.id,
             tier_name: ticket.tier_name,
             price: Number(ticket.price),
-            currency: 'ETB',
+            currency: "ETB",
             capacity: Number(ticket.capacity),
-            remaining_quantity: Number(ticket.remaining_quantity || ticket.capacity),
+            remaining_quantity: Number(
+              ticket.remaining_quantity || ticket.capacity,
+            ),
             benefits: ticket.benefits || null,
-            is_active: true
+            is_active: true,
           }));
 
         if (validTickets.length > 0) {
@@ -217,23 +247,25 @@ const createEvent = async (req, res) => {
 
     res.status(201).json({ success: true, event_id: createdEvent.id });
   } catch (error) {
-    console.error('Create event error:', error);
+    console.error("Create event error:", error);
 
-    if (error?.code === 'P2000') {
+    if (error?.code === "P2000") {
       return res.status(400).json({
-        message: 'One or more fields exceed the allowed size. Please shorten your input and try again.',
-        field: error?.meta?.target || null
+        message:
+          "One or more fields exceed the allowed size. Please shorten your input and try again.",
+        field: error?.meta?.target || null,
       });
     }
 
-    if (error?.code === 'P2003') {
+    if (error?.code === "P2003") {
       return res.status(400).json({
-        message: 'Invalid category selected. Please refresh categories and try again.',
-        field: 'category_id'
+        message:
+          "Invalid category selected. Please refresh categories and try again.",
+        field: "category_id",
       });
     }
 
-    res.status(500).json({ message: 'Server error', error: error.message });
+    res.status(500).json({ message: "Server error", error: error.message });
   }
 };
 
@@ -243,18 +275,27 @@ const updateEvent = async (req, res) => {
     const eventId = req.params.id;
 
     const event = await prisma.event.findUnique({
-      where: { id: eventId }
+      where: { id: eventId },
     });
 
     if (!event) {
-      return res.status(404).json({ message: 'Event not found' });
+      return res.status(404).json({ message: "Event not found" });
     }
 
     if (event.organizer_id !== req.user.id) {
-      return res.status(403).json({ message: 'Not authorized' });
+      return res.status(403).json({ message: "Not authorized" });
     }
 
-    const { title, description, start_datetime, end_datetime, city, venue_name, address_line1, banner_url } = req.body;
+    const {
+      title,
+      description,
+      start_datetime,
+      end_datetime,
+      city,
+      venue_name,
+      address_line1,
+      banner_url,
+    } = req.body;
     const normalizedBannerUrl = normalizeBannerUrl(banner_url);
     const bannerValidationError = validateBannerUrl(normalizedBannerUrl);
 
@@ -272,22 +313,23 @@ const updateEvent = async (req, res) => {
         city,
         venue_name,
         address_line1,
-        banner_url: normalizedBannerUrl
-      }
+        banner_url: normalizedBannerUrl,
+      },
     });
 
-    res.json({ success: true, message: 'Event updated successfully' });
+    res.json({ success: true, message: "Event updated successfully" });
   } catch (error) {
-    console.error('Update event error:', error);
+    console.error("Update event error:", error);
 
-    if (error?.code === 'P2000') {
+    if (error?.code === "P2000") {
       return res.status(400).json({
-        message: 'One or more fields exceed the allowed size. Please shorten your input and try again.',
-        field: error?.meta?.target || null
+        message:
+          "One or more fields exceed the allowed size. Please shorten your input and try again.",
+        field: error?.meta?.target || null,
       });
     }
 
-    res.status(500).json({ message: 'Server error' });
+    res.status(500).json({ message: "Server error" });
   }
 };
 
@@ -297,23 +339,23 @@ const deleteEvent = async (req, res) => {
     const eventId = req.params.id;
 
     const event = await prisma.event.findUnique({
-      where: { id: eventId }
+      where: { id: eventId },
     });
 
     if (!event) {
-      return res.status(404).json({ message: 'Event not found' });
+      return res.status(404).json({ message: "Event not found" });
     }
 
     if (event.organizer_id !== req.user.id) {
-      return res.status(403).json({ message: 'Not authorized' });
+      return res.status(403).json({ message: "Not authorized" });
     }
 
     await prisma.event.delete({ where: { id: eventId } });
 
-    res.json({ success: true, message: 'Event deleted successfully' });
+    res.json({ success: true, message: "Event deleted successfully" });
   } catch (error) {
-    console.error('Delete event error:', error);
-    res.status(500).json({ message: 'Server error' });
+    console.error("Delete event error:", error);
+    res.status(500).json({ message: "Server error" });
   }
 };
 
@@ -323,20 +365,20 @@ const getFeaturedEvents = async (req, res) => {
     const events = await prisma.event.findMany({
       where: {
         is_featured: true,
-        status: 'published'
+        status: "published",
       },
       include: {
         category: {
-          select: { name: true }
-        }
+          select: { name: true },
+        },
       },
-      take: 6
+      take: 6,
     });
 
     res.json({ success: true, events: events.map(withCategoryName) });
   } catch (error) {
-    console.error('Get featured events error:', error);
-    res.status(500).json({ message: 'Server error' });
+    console.error("Get featured events error:", error);
+    res.status(500).json({ message: "Server error" });
   }
 };
 
@@ -347,5 +389,5 @@ module.exports = {
   createEvent,
   updateEvent,
   deleteEvent,
-  getFeaturedEvents
+  getFeaturedEvents,
 };

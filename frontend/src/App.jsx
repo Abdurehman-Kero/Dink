@@ -1,32 +1,33 @@
-import { Navigate, Route, Routes } from 'react-router-dom';
-import { Navbar } from './components/common/Navbar';
-import { Footer } from './components/common/Footer';
-import { FloatingCartButton } from './components/common/FloatingCartButton';
-import { LandingPage } from './pages/landing/LandingPage';
+import { Navigate, Route, Routes } from "react-router-dom";
+import { Navbar } from "./components/common/Navbar";
+import { Footer } from "./components/common/Footer";
+import { FloatingCartButton } from "./components/common/FloatingCartButton";
+import { LandingPage } from "./pages/landing/LandingPage";
 import { StaffDashboard } from "./pages/staff/StaffDashboard";
 import { PaymentVerify } from "./pages/PaymentVerify";
-import { LoginPage } from './pages/auth/LoginPage';
-import { SignupPage } from './pages/auth/SignupPage';
+import { LoginPage } from "./pages/auth/LoginPage";
+import { SignupPage } from "./pages/auth/SignupPage";
 import { OrganizerApprovals } from "./pages/admin/OrganizerApprovals";
 import { PaymentSuccess } from "./pages/PaymentSuccess";
-import { OrganizerSignupPage } from './pages/auth/OrganizerSignupPage';
-import { DiscoveryPage } from './pages/discovery/DiscoveryPage';
-import { EventDetailPage } from './pages/event/EventDetailPage';
-import { CheckoutPage } from './pages/checkout/CheckoutPage';
-import { SavedTicketsPage } from './pages/cart/SavedTicketsPage';
-import { MyTicketsPage } from './pages/tickets/MyTicketsPage';
-import { OrganizerDashboard } from './pages/organizer/OrganizerDashboard';
-import { CreateEventPage } from './pages/organizer/CreateEventPage';
-import { StaffManagementPage } from './pages/organizer/StaffManagementPage';
-import { PayoutSettingsPage } from './pages/organizer/PayoutSettingsPage';
-import { EventAnalyticsPage } from './pages/organizer/EventAnalyticsPage';
-import { EventsAnalyticsOverview } from './pages/organizer/EventsAnalyticsOverview';
-import { AdminDashboard } from './pages/admin/AdminDashboard';
-import { AdminApprovalPage } from './pages/admin/AdminApprovalPage';
-import { SecurityScannerPage } from './pages/security/SecurityScannerPage';
-import { ProfilePage } from './pages/profile/ProfilePage';
+import { OrganizerSignupPage } from "./pages/auth/OrganizerSignupPage";
+import { DiscoveryPage } from "./pages/discovery/DiscoveryPage";
+import { EventDetailPage } from "./pages/event/EventDetailPage";
+import { CheckoutPage } from "./pages/checkout/CheckoutPage";
+import { SavedTicketsPage } from "./pages/cart/SavedTicketsPage";
+import { MyTicketsPage } from "./pages/tickets/MyTicketsPage";
+import { OrganizerDashboard } from "./pages/organizer/OrganizerDashboard";
+import { CreateEventPage } from "./pages/organizer/CreateEventPage";
+import { StaffManagementPage } from "./pages/organizer/StaffManagementPage";
+import { PayoutSettingsPage } from "./pages/organizer/PayoutSettingsPage";
+import { EventAnalyticsPage } from "./pages/organizer/EventAnalyticsPage";
+import { EventsAnalyticsOverview } from "./pages/organizer/EventsAnalyticsOverview";
+import { AdminDashboard } from "./pages/admin/AdminDashboard";
+import { AdminApprovalPage } from "./pages/admin/AdminApprovalPage";
+import { AdminEventsPage } from "./pages/admin/AdminEventsPage";
+import { SecurityScannerPage } from "./pages/security/SecurityScannerPage";
+import { ProfilePage } from "./pages/profile/ProfilePage";
 import { AdminManagement } from "./pages/admin/AdminManagement";
-import { useAuth } from './contexts/AuthContext';
+import { useAuth } from "./contexts/AuthContext";
 
 function ProtectedRoleRoute({ children, allowedRoleIds }) {
   const { isAuthenticated, user } = useAuth();
@@ -84,13 +85,14 @@ function App() {
           />
           <Route path="/admin/dashboard" element={<AdminDashboard />} />
           <Route path="/admin/approvals" element={<AdminApprovalPage />} />
+          <Route path="/admin/events" element={<AdminEventsPage />} />
           <Route
             path="/staff/dashboard"
-            element={(
+            element={
               <ProtectedRoleRoute allowedRoleIds={[1, 4, 5]}>
                 <StaffDashboard />
               </ProtectedRoleRoute>
-            )}
+            }
           />
           <Route path="/admin/users" element={<AdminManagement />} />
           <Route path="/admin/approvals" element={<OrganizerApprovals />} />
@@ -98,11 +100,11 @@ function App() {
           <Route path="/payment/success" element={<PaymentSuccess />} />
           <Route
             path="/security/scanner"
-            element={(
+            element={
               <ProtectedRoleRoute allowedRoleIds={[1, 4, 5]}>
                 <SecurityScannerPage />
               </ProtectedRoleRoute>
-            )}
+            }
           />
         </Routes>
       </main>

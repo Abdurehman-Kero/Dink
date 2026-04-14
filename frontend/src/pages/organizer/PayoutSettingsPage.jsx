@@ -30,8 +30,9 @@ export function PayoutSettingsPage() {
     total_fee_due: 0,
     total_paid: 0,
     pending_payment: 0,
-    next_payment_date: null,
-    platform_fee_percentage: null,
+    remaining_balance: 0,
+    exact_fee_amount: 0,
+    payable_now: 0,
   });
 
   const [paymentHistory, setPaymentHistory] = useState([]);
@@ -54,36 +55,16 @@ export function PayoutSettingsPage() {
       }
 
       const payments = Array.isArray(data.payments) ? data.payments : [];
-      const completedPayments = payments.filter(
-        (payment) => payment.status === "completed",
-      );
-      const pendingPayments = payments.filter(
-        (payment) => payment.status === "pending",
-      );
-
-      const totalPaid = completedPayments.reduce(
-        (sum, payment) => sum + Number(payment.amount || 0),
-        0,
-      );
-      const pendingPayment = pendingPayments.reduce(
-        (sum, payment) => sum + Number(payment.amount || 0),
-        0,
-      );
-      const nextPaymentDate =
-        pendingPayments.length > 0
-          ? pendingPayments
-              .map((payment) => payment.created_at)
-              .filter(Boolean)
-              .sort((a, b) => new Date(a) - new Date(b))[0]
-          : null;
+      const summary = data.summary || {};
 
       setPaymentHistory(payments);
       setStats({
-        total_fee_due: totalPaid + pendingPayment,
-        total_paid: totalPaid,
-        pending_payment: pendingPayment,
-        next_payment_date: nextPaymentDate,
-        platform_fee_percentage: null,
+        total_fee_due: Number(summary.total_fee_due || 0),
+        total_paid: Number(summary.total_paid || 0),
+        pending_payment: Number(summary.pending_payment || 0),
+        remaining_balance: Number(summary.remaining_balance || 0),
+        exact_fee_amount: Number(summary.exact_fee_amount || 0),
+        payable_now: Number(summary.payable_now || 0),
       });
     } catch (error) {
       console.error("Error fetching stats:", error);
@@ -94,14 +75,16 @@ export function PayoutSettingsPage() {
   };
 
   const handlePayment = async () => {
-    if (!paymentAmount || paymentAmount < 500) {
-      setError("Minimum payment amount is ETB 500");
+    const exactDueAmount = Number(stats.payable_now || 0);
+
+    if (exactDueAmount <= 0) {
+      setError("No platform fee payment is currently due.");
       return;
     }
 
-    if (stats.pending_payment > 0 && paymentAmount > stats.pending_payment) {
+    if (!paymentAmount || Number(paymentAmount) !== exactDueAmount) {
       setError(
-        `Amount exceeds pending balance of ETB ${stats.pending_payment}`,
+        `You must pay the exact amount: ETB ${exactDueAmount.toLocaleString()}`,
       );
       return;
     }
@@ -119,7 +102,7 @@ export function PayoutSettingsPage() {
           Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
-          amount: parseFloat(paymentAmount),
+          amount: exactDueAmount,
           payment_method: paymentMethod,
         }),
       });
@@ -191,10 +174,8 @@ export function PayoutSettingsPage() {
           <div className="mt-2 inline-flex items-center gap-2 px-3 py-1 bg-gray-100 rounded-full text-sm">
             <Shield className="size-4 text-green-600" />
             <span>
-              Platform Fee:{" "}
-              {stats.platform_fee_percentage !== null
-                ? `${stats.platform_fee_percentage}% of ticket sales`
-                : "Configured by platform policy"}
+              Exact Platform Fee Set By Super Admin: ETB{" "}
+              {stats.exact_fee_amount.toLocaleString()}
             </span>
           </div>
         </div>
@@ -219,13 +200,32 @@ export function PayoutSettingsPage() {
             </p>
           </div>
           <div className="bg-white rounded-2xl p-6 shadow-sm border-l-4 border-purple-500">
-            <p className="text-sm text-gray-600">Next Payment Due</p>
+            <p className="text-sm text-gray-600">Remaining Balance</p>
             <p className="text-2xl font-bold text-gray-900">
-              {stats.next_payment_date
-                ? new Date(stats.next_payment_date).toLocaleDateString()
-                : "-"}
+              ETB {stats.remaining_balance.toLocaleString()}
             </p>
           </div>
+        </div>
+
+        <div className="bg-white rounded-2xl p-5 shadow-sm border mb-8">
+          {stats.total_fee_due > 0 && (
+            <div className="mb-3 p-3 bg-yellow-50 border border-yellow-200 rounded-lg text-sm text-yellow-800">
+              You have pending event(s). Pay the platform fee to publish them on
+              discovery.
+            </div>
+          )}
+          <p className="text-sm text-gray-600">
+            Exact System Fee:{" "}
+            <span className="font-semibold text-gray-900">
+              ETB {stats.exact_fee_amount.toLocaleString()}
+            </span>
+          </p>
+          <p className="text-sm text-gray-600 mt-1">
+            Payable Now:{" "}
+            <span className="font-semibold text-gray-900">
+              ETB {stats.payable_now.toLocaleString()}
+            </span>
+          </p>
         </div>
 
         <div className="bg-white rounded-2xl shadow-sm overflow-hidden mb-8">
@@ -278,13 +278,14 @@ export function PayoutSettingsPage() {
           <button
             onClick={() => {
               setPaymentAmount(
-                stats.pending_payment > 0 ? String(stats.pending_payment) : "",
+                stats.payable_now > 0 ? String(stats.payable_now) : "",
               );
               setShowPaymentModal(true);
             }}
+            disabled={stats.payable_now <= 0}
             className="px-8 py-4 bg-gradient-to-r from-green-600 to-green-700 text-white rounded-xl font-semibold hover:from-green-700 hover:to-green-800 transition shadow-md"
           >
-            Pay Platform Fee
+            {stats.payable_now > 0 ? "Pay Platform Fee" : "No Fee Due"}
           </button>
         </div>
       </div>
@@ -301,9 +302,9 @@ export function PayoutSettingsPage() {
                 Pay Platform Fee
               </h2>
               <p className="text-gray-500 text-sm">
-                {stats.pending_payment > 0
-                  ? `Pending amount: ETB ${stats.pending_payment.toLocaleString()}`
-                  : "Enter the amount you want to pay (minimum ETB 500)"}
+                {stats.payable_now > 0
+                  ? `Exact payable fee: ETB ${stats.payable_now.toLocaleString()}`
+                  : "No payment due right now"}
               </p>
             </div>
 
@@ -321,14 +322,13 @@ export function PayoutSettingsPage() {
                 <input
                   type="number"
                   value={paymentAmount}
-                  onChange={(e) => setPaymentAmount(e.target.value)}
-                  placeholder={
-                    stats.pending_payment > 0
-                      ? `Min: 500, Max: ${stats.pending_payment}`
-                      : "Min: 500"
-                  }
+                  readOnly
+                  placeholder="Exact fee amount"
                   className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-green-500"
                 />
+                <p className="text-xs text-gray-500 mt-1">
+                  This is the exact amount set by super admin.
+                </p>
               </div>
 
               <div>

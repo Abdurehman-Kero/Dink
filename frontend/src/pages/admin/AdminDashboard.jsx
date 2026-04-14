@@ -328,12 +328,6 @@ export function AdminDashboard() {
             >
               <RefreshCw className="size-4" /> Refresh
             </button>
-            <button
-              onClick={logout}
-              className="px-4 py-2 bg-red-50 text-red-600 rounded-xl"
-            >
-              Logout
-            </button>
           </div>
         </div>
 

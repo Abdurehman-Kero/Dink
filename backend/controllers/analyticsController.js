@@ -1,4 +1,4 @@
-const { prisma } = require('../config/database');
+const { prisma } = require("../config/database");
 
 const toNumber = (value) => {
   const parsed = Number(value);
@@ -14,6 +14,29 @@ const toIsoDate = (value) => {
   return date.toISOString().slice(0, 10);
 };
 
+const getEventViewsFromDb = async (eventId) => {
+  try {
+    const rows = await prisma.$queryRaw`
+      SELECT views
+      FROM event_analytics
+      WHERE event_id = ${eventId}
+      LIMIT 1
+    `;
+
+    if (!Array.isArray(rows) || rows.length === 0) {
+      return 0;
+    }
+
+    return toNumber(rows[0]?.views);
+  } catch (error) {
+    console.error(
+      "Failed to fetch event views from event_analytics:",
+      error.message,
+    );
+    return 0;
+  }
+};
+
 // Get event analytics for organizer (REAL DATA)
 const getEventAnalytics = async (req, res) => {
   try {
@@ -24,33 +47,35 @@ const getEventAnalytics = async (req, res) => {
     const event = await prisma.event.findFirst({
       where: {
         id: eventId,
-        organizer_id: organizerId
+        organizer_id: organizerId,
       },
       select: {
         id: true,
-        title: true
-      }
+        title: true,
+      },
     });
 
     if (!event) {
-      return res.status(404).json({ message: 'Event not found or not authorized' });
+      return res
+        .status(404)
+        .json({ message: "Event not found or not authorized" });
     }
 
     // Get ticket sales by type (REAL DATA)
     const ticketSales = await prisma.ticketType.findMany({
       where: {
-        event_id: eventId
+        event_id: eventId,
       },
       select: {
         id: true,
         tier_name: true,
         price: true,
         capacity: true,
-        remaining_quantity: true
+        remaining_quantity: true,
       },
       orderBy: {
-        price: 'asc'
-      }
+        price: "asc",
+      },
     });
 
     const ticketDistribution = ticketSales.map((ticket) => {
@@ -63,23 +88,29 @@ const getEventAnalytics = async (req, res) => {
         value: sold,
         price,
         capacity: ticket.capacity,
-        revenue
+        revenue,
       };
     });
 
-    const totalTicketsSold = ticketDistribution.reduce((sum, ticket) => sum + ticket.value, 0);
-    const totalRevenue = ticketDistribution.reduce((sum, ticket) => sum + ticket.revenue, 0);
+    const totalTicketsSold = ticketDistribution.reduce(
+      (sum, ticket) => sum + ticket.value,
+      0,
+    );
+    const totalRevenue = ticketDistribution.reduce(
+      (sum, ticket) => sum + ticket.revenue,
+      0,
+    );
 
     // Get daily sales data from paid orders
     const paidOrderItems = await prisma.orderItem.findMany({
       where: {
         event_id: eventId,
         order: {
-          status: 'paid',
+          status: "paid",
           paid_at: {
-            not: null
-          }
-        }
+            not: null,
+          },
+        },
       },
       select: {
         quantity: true,
@@ -87,10 +118,10 @@ const getEventAnalytics = async (req, res) => {
         order: {
           select: {
             id: true,
-            paid_at: true
-          }
-        }
-      }
+            paid_at: true,
+          },
+        },
+      },
     });
 
     const dailySalesByDate = new Map();
@@ -107,7 +138,7 @@ const getEventAnalytics = async (req, res) => {
         dailySalesByDate.set(dateKey, {
           orderIds: new Set(),
           tickets_sold: 0,
-          revenue: 0
+          revenue: 0,
         });
       }
 
@@ -122,7 +153,7 @@ const getEventAnalytics = async (req, res) => {
         date,
         order_count: values.orderIds.size,
         tickets_sold: values.tickets_sold,
-        revenue: values.revenue
+        revenue: values.revenue,
       }))
       .sort((a, b) => (a.date < b.date ? 1 : -1))
       .slice(0, 7);
@@ -130,44 +161,47 @@ const getEventAnalytics = async (req, res) => {
     // Get check-in stats (REAL DATA)
     const checkins = await prisma.checkInLog.findMany({
       where: {
-        event_id: eventId
+        event_id: eventId,
       },
       select: {
-        check_in_time: true
-      }
+        check_in_time: true,
+      },
     });
 
     const totalCheckedIn = checkins.length;
-    const checkInRate = totalTicketsSold > 0 ? ((totalCheckedIn / totalTicketsSold) * 100).toFixed(1) : 0;
+    const checkInRate =
+      totalTicketsSold > 0
+        ? ((totalCheckedIn / totalTicketsSold) * 100).toFixed(1)
+        : 0;
 
     // Get reviews (REAL DATA)
     const reviews = await prisma.review.findMany({
       where: {
         event_id: eventId,
-        status: 'visible'
+        status: "visible",
       },
       include: {
         user: {
           select: {
-            full_name: true
-          }
-        }
+            full_name: true,
+          },
+        },
       },
       orderBy: {
-        created_at: 'desc'
+        created_at: "desc",
       },
-      take: 5
+      take: 5,
     });
 
     // Get average rating (REAL DATA)
     const avgRating = await prisma.review.aggregate({
       where: {
         event_id: eventId,
-        status: 'visible'
+        status: "visible",
       },
       _avg: {
-        rating: true
-      }
+        rating: true,
+      },
     });
 
     // Get hourly check-in pattern (REAL DATA)
@@ -182,28 +216,32 @@ const getEventAnalytics = async (req, res) => {
     for (let i = 9; i <= 17; i++) {
       const count = hourlyCheckinsMap.get(i) || 0;
       hourlyData.push({
-        hour: `${i} ${i < 12 ? 'AM' : 'PM'}`,
-        count
+        hour: `${i} ${i < 12 ? "AM" : "PM"}`,
+        count,
       });
     }
 
-    // Calculate total views (mock for now - can be implemented with page view tracking)
-    const totalViews = Math.max(1000, totalTicketsSold * 25 + totalCheckedIn * 10);
+    const totalViews = await getEventViewsFromDb(eventId);
 
     // Format daily sales for chart
-    const dailySalesFormatted = dailySales.map(d => ({
-      date: new Date(d.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
-      sales: d.tickets_sold,
-      revenue: d.revenue
-    })).reverse();
-    
+    const dailySalesFormatted = dailySales
+      .map((d) => ({
+        date: new Date(d.date).toLocaleDateString("en-US", {
+          month: "short",
+          day: "numeric",
+        }),
+        sales: d.tickets_sold,
+        revenue: d.revenue,
+      }))
+      .reverse();
+
     // Format reviews
-    const reviewsFormatted = reviews.map(r => ({
+    const reviewsFormatted = reviews.map((r) => ({
       id: r.id,
-      user: r.user?.full_name || 'Unknown User',
+      user: r.user?.full_name || "Unknown User",
       rating: r.rating,
       comment: r.review_text,
-      date: r.created_at
+      date: r.created_at,
     }));
 
     res.json({
@@ -217,12 +255,12 @@ const getEventAnalytics = async (req, res) => {
         ticket_distribution: ticketDistribution,
         daily_sales: dailySalesFormatted,
         hourly_checkins: hourlyData,
-        recent_reviews: reviewsFormatted
-      }
+        recent_reviews: reviewsFormatted,
+      },
     });
   } catch (error) {
-    console.error('Get event analytics error:', error);
-    res.status(500).json({ message: 'Server error', error: error.message });
+    console.error("Get event analytics error:", error);
+    res.status(500).json({ message: "Server error", error: error.message });
   }
 };
 
@@ -234,7 +272,7 @@ const getOrganizerStats = async (req, res) => {
     // Get all events for this organizer
     const events = await prisma.event.findMany({
       where: {
-        organizer_id: organizerId
+        organizer_id: organizerId,
       },
       select: {
         id: true,
@@ -243,10 +281,10 @@ const getOrganizerStats = async (req, res) => {
           select: {
             capacity: true,
             remaining_quantity: true,
-            price: true
-          }
-        }
-      }
+            price: true,
+          },
+        },
+      },
     });
 
     let totalTicketsSold = 0;
@@ -256,12 +294,15 @@ const getOrganizerStats = async (req, res) => {
 
     for (const event of events) {
       for (const ticketType of event.ticket_types) {
-        const sold = Math.max(0, ticketType.capacity - ticketType.remaining_quantity);
+        const sold = Math.max(
+          0,
+          ticketType.capacity - ticketType.remaining_quantity,
+        );
         totalTicketsSold += sold;
         totalRevenue += sold * toNumber(ticketType.price);
       }
 
-      if (event.status === 'completed') {
+      if (event.status === "completed") {
         completedEvents++;
       }
     }
@@ -273,12 +314,13 @@ const getOrganizerStats = async (req, res) => {
         total_tickets_sold: totalTicketsSold,
         total_revenue: totalRevenue,
         completed_events: completedEvents,
-        average_tickets_per_event: totalEvents > 0 ? Math.round(totalTicketsSold / totalEvents) : 0
-      }
+        average_tickets_per_event:
+          totalEvents > 0 ? Math.round(totalTicketsSold / totalEvents) : 0,
+      },
     });
   } catch (error) {
-    console.error('Get organizer stats error:', error);
-    res.status(500).json({ message: 'Server error' });
+    console.error("Get organizer stats error:", error);
+    res.status(500).json({ message: "Server error" });
   }
 };
 

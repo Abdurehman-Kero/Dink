@@ -309,13 +309,7 @@ export function CreateEventPage() {
 
   return (
     <div className="min-h-screen bg-gray-50 py-8 px-4">
-      <div className="fixed top-16 left-0 right-0 h-1 flex z-40">
-        <div className="flex-1 bg-green-600" />
-        <div className="flex-1 bg-yellow-400" />
-        <div className="flex-1 bg-red-600" />
-      </div>
-
-      <div className="max-w-4xl mx-auto">
+<div className="max-w-4xl mx-auto">
         <div className="mb-8">
           <button onClick={() => navigate('/organizer/dashboard')} className="flex items-center gap-2 text-gray-600 hover:text-green-600 mb-4">
             <ArrowLeft className="size-5" /> Back to Dashboard

@@ -172,13 +172,7 @@ export function CheckoutPage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-gray-50 to-white py-8 px-4">
-      <div className="fixed top-16 left-0 right-0 h-1 flex z-40">
-        <div className="flex-1 bg-green-600" />
-        <div className="flex-1 bg-yellow-400" />
-        <div className="flex-1 bg-red-600" />
-      </div>
-
-      <div className="max-w-6xl mx-auto">
+<div className="max-w-6xl mx-auto">
         <div className="text-center mb-8">
           <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-br from-green-600 via-yellow-500 to-red-600 rounded-2xl shadow-lg mb-4">
             <CreditCard className="size-8 text-white" />

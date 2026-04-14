@@ -258,13 +258,7 @@ export function EventDetailPage() {
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Ethiopian Tricolor Accent */}
-      <div className="fixed top-16 left-0 right-0 h-1 flex z-40">
-        <div className="flex-1 bg-green-600" />
-        <div className="flex-1 bg-yellow-400" />
-        <div className="flex-1 bg-red-600" />
-      </div>
-
-      {/* Login Prompt Modal */}
+{/* Login Prompt Modal */}
       {showLoginPrompt && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl max-w-md w-full p-6 animate-scaleUp">

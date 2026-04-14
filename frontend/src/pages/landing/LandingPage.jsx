@@ -285,13 +285,6 @@ export function LandingPage() {
     <div className="min-h-screen flex flex-col overflow-x-hidden">
       {/* Hero Section */}
       <section className="relative bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 text-white overflow-hidden">
-        {/* Ethiopian tricolor accent */}
-        <div className="absolute top-0 left-0 right-0 h-2 flex z-50">
-          <div className="flex-1 bg-green-600" />
-          <div className="flex-1 bg-yellow-400" />
-          <div className="flex-1 bg-red-600" />
-        </div>
-
         {/* Animated Background Pattern */}
         <div className="absolute inset-0 opacity-5">
           <div

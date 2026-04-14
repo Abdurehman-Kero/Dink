@@ -116,13 +116,7 @@ export function SignupPage() {
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 flex items-center justify-center px-4 py-12">
       <div className="w-full max-w-md">
         {/* Ethiopian Tricolor Accent */}
-        <div className="fixed top-0 left-0 right-0 h-1 flex z-50">
-          <div className="flex-1 bg-green-600" />
-          <div className="flex-1 bg-yellow-400" />
-          <div className="flex-1 bg-red-600" />
-        </div>
-
-        <div className="bg-white rounded-2xl shadow-xl p-8 border border-gray-100">
+<div className="bg-white rounded-2xl shadow-xl p-8 border border-gray-100">
           {/* Logo and Title */}
           <div className="text-center mb-8">
             <div className="flex justify-center mb-4">

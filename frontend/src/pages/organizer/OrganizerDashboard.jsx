@@ -294,13 +294,7 @@ export function OrganizerDashboard() {
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Ethiopian Tricolor Accent */}
-      <div className="fixed top-16 left-0 right-0 h-1 flex z-40">
-        <div className="flex-1 bg-green-600" />
-        <div className="flex-1 bg-yellow-400" />
-        <div className="flex-1 bg-red-600" />
-      </div>
-
-      <div className="max-w-7xl mx-auto px-4 py-8">
+<div className="max-w-7xl mx-auto px-4 py-8">
         {/* Header */}
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8">
           <div>

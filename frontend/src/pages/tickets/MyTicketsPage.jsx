@@ -49,8 +49,7 @@ export function MyTicketsPage() {
 
   return (
     <div className="min-h-screen bg-gray-50 py-8 px-4">
-      <div className="fixed top-16 left-0 right-0 h-1 flex z-40"><div className="flex-1 bg-green-600" /><div className="flex-1 bg-yellow-400" /><div className="flex-1 bg-red-600" /></div>
-      <div className="max-w-6xl mx-auto">
+<div className="max-w-6xl mx-auto">
         <div className="text-center mb-8"><div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-br from-green-600 via-yellow-500 to-red-600 rounded-2xl shadow-lg mb-4"><Ticket className="size-8 text-white" /></div><h1 className="text-3xl font-bold text-gray-900 mb-2">My Tickets</h1><p className="text-gray-600">Your digital ticket wallet</p></div>
         {tickets.length === 0 ? (
           <div className="text-center py-16 bg-white rounded-2xl"><Ticket className="size-16 text-gray-300 mx-auto mb-4" /><h3 className="text-xl font-semibold text-gray-900 mb-2">No tickets found</h3><p className="text-gray-500 mb-6">You haven't purchased any tickets yet</p><Link to="/discover" className="inline-flex items-center gap-2 px-6 py-3 bg-green-600 text-white rounded-xl">Browse Events</Link></div>

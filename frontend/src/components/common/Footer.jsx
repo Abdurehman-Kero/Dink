@@ -183,7 +183,7 @@ export function Footer() {
                 </div>
                 <div className="flex items-center gap-2 text-gray-400 text-xs mt-2">
                   <Phone className="size-3" />
-                  <span>+251-111-234-567</span>
+                  <span>+25982310974</span>
                 </div>
                 <div className="flex items-center gap-2 text-gray-400 text-xs mt-2">
                   <MapPin className="size-3" />
@@ -230,7 +230,9 @@ export function Footer() {
           {/* Social Links with Ethiopian Colors - Using SVG directly */}
           <div className="flex items-center gap-3">
             <a
-              href="#"
+              href="https://www.facebook.com/"
+              target="_blank"
+              rel="noopener noreferrer"
               className="p-2 bg-gray-800 rounded-lg text-gray-400 hover:bg-green-600 hover:text-white transition-all duration-300 group"
               aria-label="Facebook"
             >
@@ -243,9 +245,11 @@ export function Footer() {
               </svg>
             </a>
             <a
-              href="#"
+              href="https://x.com/"
+              target="_blank"
+              rel="noopener noreferrer"
               className="p-2 bg-gray-800 rounded-lg text-gray-400 hover:bg-yellow-500 hover:text-white transition-all duration-300 group"
-              aria-label="Twitter"
+              aria-label="X"
             >
               <svg
                 className="size-4 group-hover:scale-110 transition-transform"
@@ -256,7 +260,9 @@ export function Footer() {
               </svg>
             </a>
             <a
-              href="#"
+              href="https://www.instagram.com/"
+              target="_blank"
+              rel="noopener noreferrer"
               className="p-2 bg-gray-800 rounded-lg text-gray-400 hover:bg-red-600 hover:text-white transition-all duration-300 group"
               aria-label="Instagram"
             >
@@ -271,7 +277,9 @@ export function Footer() {
               </svg>
             </a>
             <a
-              href="#"
+              href="https://www.linkedin.com/"
+              target="_blank"
+              rel="noopener noreferrer"
               className="p-2 bg-gray-800 rounded-lg text-gray-400 hover:bg-blue-600 hover:text-white transition-all duration-300 group"
               aria-label="LinkedIn"
             >

@@ -27,6 +27,15 @@ import { AdminEventsPage } from "./pages/admin/AdminEventsPage";
 import { SecurityScannerPage } from "./pages/security/SecurityScannerPage";
 import { ProfilePage } from "./pages/profile/ProfilePage";
 import { AdminManagement } from "./pages/admin/AdminManagement";
+import { AboutPage } from "./pages/about/AboutPage";
+import { FeaturesPage } from "./pages/info/FeaturesPage";
+import { ContactPage } from "./pages/info/ContactPage";
+import { HelpPage } from "./pages/info/HelpPage";
+import { FaqPage } from "./pages/info/FaqPage";
+import { SupportPage } from "./pages/info/SupportPage";
+import { TermsPage } from "./pages/info/TermsPage";
+import { PrivacyPage } from "./pages/info/PrivacyPage";
+import { RefundPage } from "./pages/info/RefundPage";
 import { useAuth } from "./contexts/AuthContext";
 
 function ProtectedRoleRoute({ children, allowedRoleIds }) {
@@ -54,6 +63,15 @@ function App() {
           <Route path="/signup" element={<SignupPage />} />
           <Route path="/organizer/signup" element={<OrganizerSignupPage />} />
           <Route path="/discover" element={<DiscoveryPage />} />
+          <Route path="/about" element={<AboutPage />} />
+          <Route path="/features" element={<FeaturesPage />} />
+          <Route path="/contact" element={<ContactPage />} />
+          <Route path="/help" element={<HelpPage />} />
+          <Route path="/faq" element={<FaqPage />} />
+          <Route path="/support" element={<SupportPage />} />
+          <Route path="/terms" element={<TermsPage />} />
+          <Route path="/privacy" element={<PrivacyPage />} />
+          <Route path="/refund" element={<RefundPage />} />
           <Route path="/event/:eventId" element={<EventDetailPage />} />
           <Route path="/profile" element={<ProfilePage />} />
           <Route path="/saved-tickets" element={<SavedTicketsPage />} />

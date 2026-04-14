@@ -71,7 +71,7 @@ export function Navbar() {
   if (role === 5 || role === 4) {
     return (
       <nav className="sticky top-0 z-50 bg-gradient-to-r from-gray-900 to-gray-800 text-white shadow-lg">
-        <div className="px-6 py-4 flex items-center justify-between">
+        <div className="px-4 sm:px-6 py-3 sm:py-4 flex flex-wrap items-center justify-between gap-3">
           <Link to="/staff/dashboard" className="flex items-center gap-3 group">
             <div className="relative">
               <Shield className="size-6 text-green-400 group-hover:scale-110 transition-transform" />
@@ -79,10 +79,12 @@ export function Navbar() {
             </div>
             <div>
               <span className="text-lg font-bold">DEMS Security</span>
-              <p className="text-xs text-gray-400">Event Check-in System</p>
+              <p className="hidden sm:block text-xs text-gray-400">
+                Event Check-in System
+              </p>
             </div>
           </Link>
-          <div className="flex items-center gap-4">
+          <div className="w-full sm:w-auto flex items-center justify-end gap-2 sm:gap-4">
             <Link
               to="/security/scanner"
               className="px-4 py-2 bg-green-600 rounded-lg text-sm font-medium hover:bg-green-700 transition"
@@ -105,7 +107,7 @@ export function Navbar() {
   if (role === 1) {
     return (
       <nav className="sticky top-0 z-50 bg-gradient-to-r from-gray-900 via-gray-800 to-gray-900 text-white shadow-xl">
-        <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3 sm:py-4 flex items-center justify-between gap-3">
           <Link to="/admin/dashboard" className="flex items-center gap-3 group">
             <div className="relative">
               <div className="w-10 h-10 bg-gradient-to-br from-green-600 via-yellow-500 to-red-600 rounded-lg flex items-center justify-center shadow-lg group-hover:scale-105 transition-transform">
@@ -148,7 +150,7 @@ export function Navbar() {
             </Link>
           </div>
 
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2 sm:gap-4">
             <NotificationBell />
             <div className="flex items-center gap-3">
               <span className="hidden md:block text-sm text-gray-300">
@@ -163,6 +165,28 @@ export function Navbar() {
             </div>
           </div>
         </div>
+        <div className="md:hidden px-4 pb-3">
+          <div className="flex gap-2 overflow-x-auto">
+            <Link
+              to="/admin/dashboard"
+              className={`whitespace-nowrap text-sm px-3 py-2 rounded-lg transition ${location.pathname === "/admin/dashboard" ? "bg-white/10 text-white" : "text-gray-300 hover:text-white hover:bg-white/5"}`}
+            >
+              Dashboard
+            </Link>
+            <Link
+              to="/admin/approvals"
+              className={`whitespace-nowrap text-sm px-3 py-2 rounded-lg transition ${location.pathname === "/admin/approvals" ? "bg-white/10 text-white" : "text-gray-300 hover:text-white hover:bg-white/5"}`}
+            >
+              Approvals
+            </Link>
+            <Link
+              to="/admin/users"
+              className={`whitespace-nowrap text-sm px-3 py-2 rounded-lg transition ${location.pathname === "/admin/users" ? "bg-white/10 text-white" : "text-gray-300 hover:text-white hover:bg-white/5"}`}
+            >
+              Users
+            </Link>
+          </div>
+        </div>
       </nav>
     );
   }
@@ -171,7 +195,7 @@ export function Navbar() {
   if (role === 2) {
     return (
       <nav className="sticky top-0 z-50 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800 shadow-sm">
-        <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3 sm:py-4 flex items-center justify-between gap-3">
           <Link
             to="/organizer/dashboard"
             className="flex items-center gap-3 group"
@@ -216,7 +240,7 @@ export function Navbar() {
             </Link>
           </div>
 
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2 sm:gap-4">
             <NotificationBell />
             <div className="relative">
               <button
@@ -264,6 +288,34 @@ export function Navbar() {
                 </>
               )}
             </div>
+          </div>
+        </div>
+        <div className="md:hidden px-4 pb-3">
+          <div className="flex gap-2 overflow-x-auto">
+            <Link
+              to="/organizer/dashboard"
+              className={`whitespace-nowrap text-sm px-3 py-2 rounded-lg transition ${location.pathname === "/organizer/dashboard" ? "text-green-600 bg-green-50 dark:bg-green-900/20" : "text-gray-600 dark:text-gray-400"}`}
+            >
+              Dashboard
+            </Link>
+            <Link
+              to="/organizer/create-event"
+              className={`whitespace-nowrap text-sm px-3 py-2 rounded-lg transition ${location.pathname === "/organizer/create-event" ? "text-green-600 bg-green-50 dark:bg-green-900/20" : "text-gray-600 dark:text-gray-400"}`}
+            >
+              Create Event
+            </Link>
+            <Link
+              to="/staff/management"
+              className={`whitespace-nowrap text-sm px-3 py-2 rounded-lg transition ${location.pathname === "/staff/management" ? "text-green-600 bg-green-50 dark:bg-green-900/20" : "text-gray-600 dark:text-gray-400"}`}
+            >
+              Staff
+            </Link>
+            <Link
+              to="/organizer/payouts"
+              className={`whitespace-nowrap text-sm px-3 py-2 rounded-lg transition ${location.pathname === "/organizer/payouts" ? "text-green-600 bg-green-50 dark:bg-green-900/20" : "text-gray-600 dark:text-gray-400"}`}
+            >
+              Payouts
+            </Link>
           </div>
         </div>
       </nav>

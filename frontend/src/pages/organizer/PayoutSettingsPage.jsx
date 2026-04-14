@@ -44,7 +44,7 @@ export function PayoutSettingsPage() {
     setLoading(true);
     try {
       const token = localStorage.getItem("authToken");
-      const response = await fetch(`${API_URL}/payments/platform-fee/history`, {
+      const response = await fetch(`${API_URL}/platform-fee/history`, {
         headers: { Authorization: `Bearer ${token}` },
       });
 
@@ -99,7 +99,7 @@ export function PayoutSettingsPage() {
       return;
     }
 
-    if (paymentAmount > stats.pending_payment) {
+    if (stats.pending_payment > 0 && paymentAmount > stats.pending_payment) {
       setError(
         `Amount exceeds pending balance of ETB ${stats.pending_payment}`,
       );
@@ -112,7 +112,7 @@ export function PayoutSettingsPage() {
     try {
       const token = localStorage.getItem("authToken");
 
-      const response = await fetch(`${API_URL}/payments/platform-fee`, {
+      const response = await fetch(`${API_URL}/platform-fee/init`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -177,12 +177,6 @@ export function PayoutSettingsPage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-gray-50 to-white py-8 px-4">
-      <div className="fixed top-16 left-0 right-0 h-1 flex z-40">
-        <div className="flex-1 bg-green-600" />
-        <div className="flex-1 bg-yellow-400" />
-        <div className="flex-1 bg-red-600" />
-      </div>
-
       <div className="max-w-6xl mx-auto">
         <div className="text-center mb-8">
           <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-br from-green-600 via-yellow-500 to-red-600 rounded-2xl shadow-lg mb-4">
@@ -282,9 +276,13 @@ export function PayoutSettingsPage() {
 
         <div className="text-center">
           <button
-            onClick={() => setShowPaymentModal(true)}
-            disabled={stats.pending_payment === 0}
-            className="px-8 py-4 bg-gradient-to-r from-green-600 to-green-700 text-white rounded-xl font-semibold hover:from-green-700 hover:to-green-800 transition shadow-md disabled:opacity-50"
+            onClick={() => {
+              setPaymentAmount(
+                stats.pending_payment > 0 ? String(stats.pending_payment) : "",
+              );
+              setShowPaymentModal(true);
+            }}
+            className="px-8 py-4 bg-gradient-to-r from-green-600 to-green-700 text-white rounded-xl font-semibold hover:from-green-700 hover:to-green-800 transition shadow-md"
           >
             Pay Platform Fee
           </button>
@@ -303,7 +301,9 @@ export function PayoutSettingsPage() {
                 Pay Platform Fee
               </h2>
               <p className="text-gray-500 text-sm">
-                Pending amount: ETB {stats.pending_payment.toLocaleString()}
+                {stats.pending_payment > 0
+                  ? `Pending amount: ETB ${stats.pending_payment.toLocaleString()}`
+                  : "Enter the amount you want to pay (minimum ETB 500)"}
               </p>
             </div>
 
@@ -322,7 +322,11 @@ export function PayoutSettingsPage() {
                   type="number"
                   value={paymentAmount}
                   onChange={(e) => setPaymentAmount(e.target.value)}
-                  placeholder={`Min: 500, Max: ${stats.pending_payment}`}
+                  placeholder={
+                    stats.pending_payment > 0
+                      ? `Min: 500, Max: ${stats.pending_payment}`
+                      : "Min: 500"
+                  }
                   className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-green-500"
                 />
               </div>

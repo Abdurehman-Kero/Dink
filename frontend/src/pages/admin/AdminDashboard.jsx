@@ -246,7 +246,9 @@ export function AdminDashboard() {
     }
 
     if (
-      !confirm("Confirm this platform fee delivery and notify the organizer?")
+      !confirm(
+        "Confirm this payment, publish one pending event, and notify the organizer?",
+      )
     ) {
       return;
     }
@@ -270,7 +272,9 @@ export function AdminDashboard() {
       setPlatformFeeDeliveries((prev) =>
         prev.filter((payment) => payment.id !== paymentId),
       );
-      alert("Organizer notified successfully.");
+      alert(
+        "Payment confirmed, pending event published, and organizer notified.",
+      );
     } catch (error) {
       alert(error.message || "Failed to notify organizer");
     } finally {
@@ -497,30 +501,32 @@ export function AdminDashboard() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <div className="max-w-7xl mx-auto px-4 py-8">
+      <div className="max-w-7xl mx-auto px-4 py-6 sm:py-8 overflow-x-hidden">
         {/* Header */}
-        <div className="flex justify-between items-center mb-8">
+        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4 mb-8">
           <div>
-            <h1 className="text-3xl font-bold text-gray-900">
+            <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">
               Admin Dashboard
             </h1>
             <p className="text-gray-600">
               Welcome back, {user?.full_name?.split(" ")[0] || "Admin"}!
             </p>
           </div>
-          <div className="flex gap-3">
+          <div className="flex flex-wrap w-full sm:w-auto gap-3">
             <button
               onClick={fetchDashboardData}
-              className="px-4 py-2 bg-white border rounded-xl flex items-center gap-2"
+              className="px-4 py-2 bg-white border rounded-xl flex items-center justify-center gap-2 w-full sm:w-auto"
             >
               <RefreshCw className="size-4" /> Refresh
             </button>
-            <DashboardCsvDownloadButton
-              endpoint="/admin/dashboard/csv"
-              label="Download CSV"
-              loadingLabel="Preparing CSV..."
-              filenamePrefix="admin-dashboard"
-            />
+            <div className="w-full sm:w-auto">
+              <DashboardCsvDownloadButton
+                endpoint="/admin/dashboard/csv"
+                label="Download CSV"
+                loadingLabel="Preparing CSV..."
+                filenamePrefix="admin-dashboard"
+              />
+            </div>
           </div>
         </div>
 
@@ -552,8 +558,8 @@ export function AdminDashboard() {
 
         {/* Pending Approvals Section */}
         <div className="bg-white rounded-2xl shadow-sm mb-8">
-          <div className="px-6 py-4 border-b flex justify-between items-center">
-            <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2">
+          <div className="px-4 sm:px-6 py-4 border-b flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3">
+            <h2 className="text-lg sm:text-xl font-bold text-gray-900 flex flex-wrap items-center gap-2">
               <Clock className="size-5 text-orange-500" /> Pending Organizer
               Approvals
               {stats.pending_approvals > 0 && (
@@ -569,7 +575,7 @@ export function AdminDashboard() {
               View All
             </Link>
           </div>
-          <div className="p-6">
+          <div className="p-4 sm:p-6">
             {pendingOrganizers.length === 0 ? (
               <div className="text-center py-8">
                 <CheckCircle className="size-12 text-green-400 mx-auto mb-3" />
@@ -594,7 +600,7 @@ export function AdminDashboard() {
                         {new Date(org.submitted_at).toLocaleDateString()}
                       </p>
                     </div>
-                    <div className="flex gap-2">
+                    <div className="flex flex-wrap gap-2 w-full md:w-auto">
                       <button
                         onClick={() => {
                           setSelectedApp(org);
@@ -633,7 +639,7 @@ export function AdminDashboard() {
               Set the exact organizer system fee amount to be paid.
             </p>
           </div>
-          <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-4 items-end">
+          <div className="p-4 sm:p-6 grid grid-cols-1 md:grid-cols-2 gap-4 items-end">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Exact Platform Fee (ETB)
@@ -662,7 +668,7 @@ export function AdminDashboard() {
                 platformFeeConfigSaving ||
                 platformFeeConfigLoading
               }
-              className="px-4 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 disabled:opacity-50"
+              className="px-4 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 disabled:opacity-50 w-full md:w-auto"
             >
               {platformFeeConfigSaving ? "Saving..." : "Save Settings"}
             </button>
@@ -693,7 +699,7 @@ export function AdminDashboard() {
               {platformFeeDeliveries.slice(0, 8).map((payment) => (
                 <div
                   key={payment.id}
-                  className="px-6 py-4 flex flex-col md:flex-row gap-3 md:items-center md:justify-between"
+                  className="px-4 sm:px-6 py-4 flex flex-col md:flex-row gap-3 md:items-center md:justify-between"
                 >
                   <div>
                     <p className="font-semibold text-gray-900">
@@ -717,7 +723,7 @@ export function AdminDashboard() {
                     type="button"
                     disabled={platformFeeActionId === payment.id}
                     onClick={() => handleConfirmPlatformFeeDelivery(payment.id)}
-                    className="px-4 py-2 bg-emerald-600 text-white rounded-lg text-sm font-medium hover:bg-emerald-700 disabled:opacity-50 inline-flex items-center gap-2"
+                    className="px-4 py-2 bg-emerald-600 text-white rounded-lg text-sm font-medium hover:bg-emerald-700 disabled:opacity-50 inline-flex items-center justify-center gap-2 w-full sm:w-auto"
                   >
                     <Send className="size-4" />
                     {platformFeeActionId === payment.id
@@ -820,7 +826,7 @@ export function AdminDashboard() {
           <div className="px-6 py-4 border-b">
             <h2 className="text-xl font-bold">Quick Actions</h2>
           </div>
-          <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-3">
+          <div className="p-4 sm:p-6 grid grid-cols-1 md:grid-cols-2 gap-3">
             <Link
               to="/admin/approvals"
               className="flex items-center justify-between p-3 bg-gray-50 rounded-xl hover:bg-gray-100"
@@ -879,7 +885,7 @@ export function AdminDashboard() {
               {categories.map((category) => (
                 <div
                   key={category.id}
-                  className="px-6 py-4 flex items-center justify-between gap-4"
+                  className="px-4 sm:px-6 py-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3"
                 >
                   <div>
                     <p className="font-semibold text-gray-900">
@@ -895,7 +901,7 @@ export function AdminDashboard() {
                       !isSuperAdmin || categoryDeleteLoadingId === category.id
                     }
                     onClick={() => handleDeleteCategory(category)}
-                    className="px-3 py-1.5 border border-red-200 text-red-600 rounded-lg text-sm hover:bg-red-50 disabled:opacity-50 inline-flex items-center gap-1"
+                    className="px-3 py-1.5 border border-red-200 text-red-600 rounded-lg text-sm hover:bg-red-50 disabled:opacity-50 inline-flex items-center justify-center gap-1 w-full sm:w-auto"
                   >
                     <Trash2 className="size-4" />
                     {categoryDeleteLoadingId === category.id
@@ -1039,7 +1045,7 @@ export function AdminDashboard() {
               placeholder="Explain your decision..."
             />
 
-            <div className="mt-5 flex gap-3">
+            <div className="mt-5 flex flex-col sm:flex-row gap-3">
               <button
                 type="button"
                 onClick={() => setShowReportModal(false)}
@@ -1107,7 +1113,7 @@ export function AdminDashboard() {
               placeholder="Explain your decision..."
             />
 
-            <div className="mt-5 flex gap-3">
+            <div className="mt-5 flex flex-col sm:flex-row gap-3">
               <button
                 type="button"
                 onClick={() => setShowAppealModal(false)}
@@ -1190,7 +1196,7 @@ export function AdminDashboard() {
                 <p className="text-sm text-red-600">{categoryError}</p>
               )}
 
-              <div className="pt-2 flex gap-3">
+              <div className="pt-2 flex flex-col sm:flex-row gap-3">
                 <button
                   type="button"
                   onClick={() => setShowCreateCategoryModal(false)}

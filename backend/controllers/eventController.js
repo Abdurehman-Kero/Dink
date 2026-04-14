@@ -1,5 +1,6 @@
 const { prisma } = require("../config/database");
 const { generateId } = require("../utils/id");
+const DEFAULT_EXACT_PLATFORM_FEE_AMOUNT = 500;
 
 const MAX_BANNER_URL_LENGTH = 2048;
 const DATA_IMAGE_URL_REGEX = /^data:image\/[a-zA-Z0-9.+-]+;base64,/i;
@@ -38,6 +39,95 @@ const withCategoryName = (event) => {
     ...rest,
     category_name: category?.name || null,
   };
+};
+
+const ensurePlatformFeeSettingsTable = async () => {
+  await prisma.$executeRawUnsafe(`
+    CREATE TABLE IF NOT EXISTS platform_fee_settings (
+      id INT PRIMARY KEY,
+      exact_fee_amount DECIMAL(10,2) NOT NULL DEFAULT 500,
+      updated_by VARCHAR(36),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `);
+
+  await prisma.$executeRawUnsafe(`
+    ALTER TABLE platform_fee_settings
+    ADD COLUMN IF NOT EXISTS exact_fee_amount DECIMAL(10,2) NOT NULL DEFAULT 500
+  `);
+};
+
+const getExactPlatformFeeAmount = async () => {
+  try {
+    await ensurePlatformFeeSettingsTable();
+    const rows = await prisma.$queryRawUnsafe(
+      "SELECT exact_fee_amount FROM platform_fee_settings WHERE id = 1 LIMIT 1",
+    );
+
+    if (!rows || rows.length === 0) {
+      return DEFAULT_EXACT_PLATFORM_FEE_AMOUNT;
+    }
+
+    return Number(
+      rows[0].exact_fee_amount || DEFAULT_EXACT_PLATFORM_FEE_AMOUNT,
+    );
+  } catch (error) {
+    return DEFAULT_EXACT_PLATFORM_FEE_AMOUNT;
+  }
+};
+
+const filterEventsByPaidFeeSlots = async (events) => {
+  if (!Array.isArray(events) || events.length === 0) {
+    return [];
+  }
+
+  const exactFeeAmount = await getExactPlatformFeeAmount();
+  if (!exactFeeAmount || exactFeeAmount <= 0) {
+    return events;
+  }
+
+  const organizerIds = [
+    ...new Set(events.map((event) => event.organizer_id).filter(Boolean)),
+  ];
+  if (organizerIds.length === 0) {
+    return events;
+  }
+
+  const completedPaymentsByOrganizer = await prisma.platformFeePayment.groupBy({
+    by: ["user_id"],
+    where: {
+      user_id: { in: organizerIds },
+      status: "completed",
+    },
+    _sum: { amount: true },
+  });
+
+  const paidAmountMap = new Map();
+  completedPaymentsByOrganizer.forEach((row) => {
+    paidAmountMap.set(row.user_id, Number(row._sum.amount || 0));
+  });
+
+  const eventsByOrganizer = new Map();
+  events.forEach((event) => {
+    if (!eventsByOrganizer.has(event.organizer_id)) {
+      eventsByOrganizer.set(event.organizer_id, []);
+    }
+    eventsByOrganizer.get(event.organizer_id).push(event);
+  });
+
+  const visibleEventIds = new Set();
+
+  eventsByOrganizer.forEach((organizerEvents, organizerId) => {
+    const paidAmount = paidAmountMap.get(organizerId) || 0;
+    const paidSlots = Math.max(Math.floor(paidAmount / exactFeeAmount), 0);
+
+    organizerEvents
+      .sort((a, b) => new Date(a.created_at) - new Date(b.created_at))
+      .slice(0, paidSlots)
+      .forEach((event) => visibleEventIds.add(event.id));
+  });
+
+  return events.filter((event) => visibleEventIds.has(event.id));
 };
 
 // Get all events (public)
@@ -202,6 +292,8 @@ const createEvent = async (req, res) => {
     }
 
     const createdEvent = await prisma.$transaction(async (tx) => {
+      const shouldStartAsPendingFee = req.user.role_id === 2;
+
       const event = await tx.event.create({
         data: {
           id: generateId(),
@@ -216,7 +308,7 @@ const createEvent = async (req, res) => {
           venue_name,
           address_line1,
           banner_url: normalizedBannerUrl,
-          status: "published",
+          status: shouldStartAsPendingFee ? "draft" : "published",
         },
       });
 
@@ -245,7 +337,15 @@ const createEvent = async (req, res) => {
       return event;
     });
 
-    res.status(201).json({ success: true, event_id: createdEvent.id });
+    res.status(201).json({
+      success: true,
+      event_id: createdEvent.id,
+      status: createdEvent.status,
+      message:
+        createdEvent.status === "draft"
+          ? "Event created and marked as pending fee. It will be published after platform fee payment."
+          : "Event created and published successfully.",
+    });
   } catch (error) {
     console.error("Create event error:", error);
 

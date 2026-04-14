@@ -385,7 +385,7 @@ export function LandingPage() {
               {/* Stats Banner */}
               <div
                 ref={counterRef}
-                className="grid grid-cols-2 md:grid-cols-4 gap-8 max-w-4xl mx-auto"
+                className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-8 max-w-4xl mx-auto"
               >
                 {stats.map((stat, idx) => (
                   <div

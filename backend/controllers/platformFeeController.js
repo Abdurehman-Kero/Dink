@@ -72,8 +72,8 @@ const getOrganizerRequiredFeeAmount = async (userId, exactFeeAmount) => {
   return Number((pendingEventsCount * Number(exactFeeAmount || 0)).toFixed(2));
 };
 
-const publishPendingEventsForOrganizer = async (userId) => {
-  const oldestPendingEvent = await prisma.event.findFirst({
+const publishPendingEventsForOrganizer = async (dbClient, userId) => {
+  const oldestPendingEvent = await dbClient.event.findFirst({
     where: {
       organizer_id: userId,
       status: "draft",
@@ -89,9 +89,59 @@ const publishPendingEventsForOrganizer = async (userId) => {
     return;
   }
 
-  await prisma.event.update({
+  await dbClient.event.update({
     where: { id: oldestPendingEvent.id },
     data: { status: "published" },
+  });
+};
+
+const notifySuperAdminForPaymentConfirmation = async (payment) => {
+  if (!payment?.id || !payment?.user_id) {
+    return;
+  }
+
+  const superAdmin = await prisma.user.findUnique({
+    where: { email: SUPER_ADMIN_EMAIL },
+    select: { id: true },
+  });
+
+  if (!superAdmin?.id) {
+    return;
+  }
+
+  const existingAdminNotification = await prisma.notification.findMany({
+    where: {
+      user_id: superAdmin.id,
+      type: "platform_fee_confirmation_required",
+    },
+    select: {
+      metadata: true,
+    },
+    take: 500,
+  });
+
+  const alreadyNotified = existingAdminNotification.some(
+    (item) => item?.metadata?.payment_id === payment.id,
+  );
+
+  if (alreadyNotified) {
+    return;
+  }
+
+  await prisma.notification.create({
+    data: {
+      id: generateId(),
+      user_id: superAdmin.id,
+      type: "platform_fee_confirmation_required",
+      title: "Platform Fee Confirmation Required",
+      message: `Organizer payment of ETB ${Number(payment.amount || 0).toLocaleString()} is completed and waiting for your confirmation.`,
+      metadata: {
+        payment_id: payment.id,
+        organizer_id: payment.user_id,
+        tx_ref: payment.tx_ref,
+        amount: Number(payment.amount || 0),
+      },
+    },
   });
 };
 
@@ -217,23 +267,37 @@ const verifyPlatformFeePayment = async (req, res) => {
   try {
     const { tx_ref, status } = req.body;
 
-    if (status === "success") {
-      await prisma.platformFeePayment.updateMany({
-        where: { tx_ref },
+    if (!tx_ref) {
+      return res
+        .status(400)
+        .json({ status: "error", message: "Missing tx_ref" });
+    }
+
+    const payment = await prisma.platformFeePayment.findFirst({
+      where: { tx_ref },
+      select: {
+        id: true,
+        user_id: true,
+        amount: true,
+        tx_ref: true,
+        status: true,
+      },
+    });
+
+    if (!payment) {
+      return res.status(200).json({ status: "ok" });
+    }
+
+    if (status === "success" && payment.status !== "completed") {
+      await prisma.platformFeePayment.update({
+        where: { id: payment.id },
         data: {
           status: "completed",
           completed_at: new Date(),
         },
       });
 
-      const payment = await prisma.platformFeePayment.findFirst({
-        where: { tx_ref },
-        select: { user_id: true },
-      });
-
-      if (payment?.user_id) {
-        await publishPendingEventsForOrganizer(payment.user_id);
-      }
+      await notifySuperAdminForPaymentConfirmation(payment);
     }
 
     res.status(200).json({ status: "ok" });
@@ -456,6 +520,13 @@ const getAdminPlatformFeeDeliveries = async (req, res) => {
 
 const confirmPlatformFeeDelivery = async (req, res) => {
   try {
+    if (req.user?.email !== SUPER_ADMIN_EMAIL) {
+      return res.status(403).json({
+        success: false,
+        message: "Only super admin can confirm platform fee delivery",
+      });
+    }
+
     const { paymentId } = req.params;
 
     if (!paymentId) {
@@ -514,26 +585,31 @@ const confirmPlatformFeeDelivery = async (req, res) => {
       });
     }
 
-    await prisma.notification.create({
-      data: {
-        id: generateId(),
-        user_id: payment.user_id,
-        type: "platform_fee_delivery",
-        title: "Platform Fee Payment Delivered",
-        message: `Admin confirmed your platform fee payment of ETB ${Number(payment.amount).toLocaleString()} was successfully delivered.`,
-        metadata: {
-          payment_id: payment.id,
-          tx_ref: payment.tx_ref,
-          amount: Number(payment.amount),
-          confirmed_by: req.user.id,
-          confirmed_at: new Date().toISOString(),
+    await prisma.$transaction(async (tx) => {
+      await tx.notification.create({
+        data: {
+          id: generateId(),
+          user_id: payment.user_id,
+          type: "platform_fee_delivery",
+          title: "Platform Fee Payment Confirmed",
+          message:
+            "Super admin confirmed your platform fee payment. Your pending event is now published.",
+          metadata: {
+            payment_id: payment.id,
+            tx_ref: payment.tx_ref,
+            amount: Number(payment.amount),
+            confirmed_by: req.user.id,
+            confirmed_at: new Date().toISOString(),
+          },
         },
-      },
+      });
+
+      await publishPendingEventsForOrganizer(tx, payment.user_id);
     });
 
     return res.json({
       success: true,
-      message: "Organizer notified successfully",
+      message: "Payment confirmed, event published, and organizer notified",
     });
   } catch (error) {
     console.error("Confirm platform fee delivery error:", error);
